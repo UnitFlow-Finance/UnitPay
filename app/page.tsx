@@ -3,13 +3,12 @@
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { Logo } from "@/components/Logo";
-import { hasStoredUserSession } from "@/lib/session";
 
 export default function RootPage() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace(hasStoredUserSession() ? "/wallet" : "/onboarding");
+    router.replace("/onboarding");
   }, [router]);
 
   return (
