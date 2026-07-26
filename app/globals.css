@@ -1,0 +1,152 @@
+@import "tailwindcss";
+
+/*
+ * UnitFlow Finance brand tokens — sourced from UnitFlow-Finance/docs
+ * (app/globals.css `.dark` theme + tailwind.config.ts), see lib/branding.ts
+ * for provenance notes. UnitPay only ships a dark theme (matches the
+ * docs site's default and the wallet-app aesthetic), so these map directly
+ * to :root rather than needing a `.dark` variant.
+ */
+:root {
+  --background: #0f1117;
+  --surface: #161b27;
+  --surface-elevated: #1e2535;
+  --border: #2a3347;
+  --foreground: #e2e8f0;
+  --muted: #94a3b8;
+  --subtle: #64748b;
+  --primary: #14b8a6;
+  --primary-dark: #0d9488;
+  --primary-light: #134e4a;
+  --secondary: #1f2a44;
+  --accent: #2dd4bf;
+  --success: #22c55e;
+  --error: #ef4444;
+  --warning: #f59e0b;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-border: var(--border);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-subtle: var(--subtle);
+  --color-primary: var(--primary);
+  --color-primary-dark: var(--primary-dark);
+  --color-primary-light: var(--primary-light);
+  --color-secondary: var(--secondary);
+  --color-accent: var(--accent);
+  --color-success: var(--success);
+  --color-error: var(--error);
+  --color-warning: var(--warning);
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-jetbrains-mono);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), system-ui, Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Safe-area padding for iOS notch / home indicator, mirrors the docs site. */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Slim, low-contrast scrollbar consistent with the docs site. */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--subtle);
+}
+
+/* ---------------------------------------------------------------------- */
+/* Onboarding landing page: scroll reveal + rail-flow motion primitives.  */
+/* Kept dependency-free (no framer-motion) — IntersectionObserver toggles */
+/* a class, CSS handles the transition/animation itself.                  */
+/* ---------------------------------------------------------------------- */
+
+.reveal {
+  opacity: 0;
+  transform: translateY(16px);
+  transition:
+    opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.reveal-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+
+@keyframes rail-flow-dot {
+  0% {
+    offset-distance: 0%;
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  92% {
+    opacity: 1;
+  }
+  100% {
+    offset-distance: 100%;
+    opacity: 0;
+  }
+}
+
+.rail-flow-dot {
+  offset-rotate: 0deg;
+  animation: rail-flow-dot 3.2s linear infinite;
+}
+
+@keyframes soft-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+}
+
+.soft-pulse {
+  animation: soft-pulse 3s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rail-flow-dot,
+  .soft-pulse {
+    animation: none;
+  }
+}

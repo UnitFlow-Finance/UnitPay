@@ -1,0 +1,73 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { listEscrowPods, type EscrowPod } from "@/lib/escrowPods";
+import { useWallet } from "@/lib/useWallet";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { Card } from "@/components/ui/Card";
+import { LinkButton } from "@/components/ui/Button";
+
+export default function EscrowPodsPage() {
+  const { primaryWallet, loading } = useWallet();
+  const [pods, setPods] = useState<EscrowPod[]>([]);
+
+  useEffect(() => {
+    queueMicrotask(() => setPods(listEscrowPods()));
+  }, []);
+
+  if (loading) {
+    return (
+      <main className="min-h-full flex items-center justify-center">
+        <p className="text-muted">Loading...</p>
+      </main>
+    );
+  }
+
+  if (!primaryWallet) {
+    return (
+      <main className="min-h-full flex items-center justify-center px-6">
+        <p className="text-muted text-sm">No wallet found.</p>
+      </main>
+    );
+  }
+
+  return (
+    <main className="px-4 sm:px-6 py-6 sm:py-8 max-w-md md:max-w-2xl mx-auto w-full space-y-6">
+      <PageHeader title="Escrow Pods" backHref="/wallet" />
+
+      <div className="grid grid-cols-2 gap-3">
+        <LinkButton href="/wallet/pods/new" size="lg" fullWidth>
+          Create Pod
+        </LinkButton>
+        <LinkButton href="/pods" variant="secondary" size="lg" fullWidth>
+          Discover
+        </LinkButton>
+      </div>
+
+      {pods.length === 0 ? (
+        <Card className="text-sm text-muted text-center py-8">
+          No pods yet. Create a public pod for discovery or a private pod to share by invite link.
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {pods.map((pod) => (
+            <Link key={pod.id} href={`/wallet/pods/${pod.id}`}>
+              <Card className="space-y-1 hover:border-primary/40 transition-colors">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="font-medium truncate">{pod.title}</p>
+                  <span className="text-xs text-muted">{pod.status}</span>
+                </div>
+                <p className="text-xs text-muted line-clamp-2">{pod.description}</p>
+                <p className="text-xs text-subtle">
+                  {pod.visibility === "public" ? "Public" : "Private"}
+                  {pod.targetAmount ? ` · Target ${pod.targetAmount} USDC` : " · No target"}
+                </p>
+              </Card>
+            </Link>
+          ))}
+        </div>
+      )}
+    </main>
+  );
+}

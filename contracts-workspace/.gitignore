@@ -1,0 +1,15 @@
+node_modules/
+artifacts/
+cache-hardhat/
+coverage/
+coverage.json
+.env
+.env.local
+*.log
+
+# Circle entity-secret recovery file — NEVER commit. Regenerate via
+# generateEntitySecret()/registerEntitySecretCiphertext() if lost, but note
+# losing it means losing recovery access to Circle developer-controlled
+# wallets encrypted with the corresponding entity secret.
+circle-recovery-file*.dat
+recovery_file*.dat
