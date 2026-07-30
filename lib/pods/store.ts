@@ -1,7 +1,6 @@
 import "server-only";
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import path from "node:path";
+import { readJsonFile, updateJsonFile } from "@/lib/platform/store";
 import {
   normalizeAddress,
   podStats,
@@ -22,40 +21,20 @@ type NewPodInput = Omit<EscrowPod, "id" | "status" | "createdAt" | "updatedAt"> 
   status?: EscrowPodStatus;
 };
 
-const DATA_DIR = path.join(process.cwd(), ".unitpay-data");
-const PODS_FILE = path.join(DATA_DIR, "pods.json");
-
-let writeQueue: Promise<unknown> = Promise.resolve();
+const PODS_FILE = "pods.json";
+const emptyDb: PodDatabase = { pods: [], contributions: [], activity: [] };
 
 async function readDb(): Promise<PodDatabase> {
-  try {
-    const raw = await readFile(PODS_FILE, "utf8");
-    const parsed = JSON.parse(raw) as Partial<PodDatabase>;
-    return {
-      pods: Array.isArray(parsed.pods) ? parsed.pods : [],
-      contributions: Array.isArray(parsed.contributions) ? parsed.contributions : [],
-      activity: Array.isArray(parsed.activity) ? parsed.activity : [],
-    };
-  } catch {
-    return { pods: [], contributions: [], activity: [] };
-  }
-}
-
-async function writeDb(db: PodDatabase): Promise<void> {
-  await mkdir(DATA_DIR, { recursive: true });
-  await writeFile(PODS_FILE, JSON.stringify(db, null, 2), "utf8");
+  const parsed = await readJsonFile<Partial<PodDatabase>>(PODS_FILE, emptyDb);
+  return {
+    pods: Array.isArray(parsed.pods) ? parsed.pods : [],
+    contributions: Array.isArray(parsed.contributions) ? parsed.contributions : [],
+    activity: Array.isArray(parsed.activity) ? parsed.activity : [],
+  };
 }
 
 async function updateDb<T>(fn: (db: PodDatabase) => T | Promise<T>): Promise<T> {
-  const run = async () => {
-    const db = await readDb();
-    const result = await fn(db);
-    await writeDb(db);
-    return result;
-  };
-  const next = writeQueue.then(run, run);
-  writeQueue = next.catch(() => undefined);
-  return next;
+  return updateJsonFile(PODS_FILE, emptyDb, async (db) => fn(db));
 }
 
 function byNewest<T extends { createdAt: string }>(a: T, b: T): number {
