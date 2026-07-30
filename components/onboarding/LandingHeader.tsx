@@ -24,9 +24,7 @@ export function LandingHeader() {
   return (
     <header className="sticky top-0 z-30 border-b border-border/60 bg-background/80 backdrop-blur-md">
       <div className="max-w-6xl mx-auto flex items-center justify-between px-4 sm:px-6 lg:px-8 h-16">
-        <Link href="/onboarding" className="shrink-0" onClick={() => setOpen(false)}>
-          <Logo size={30} />
-        </Link>
+        <Logo size={30} className="shrink-0" />
 
         <nav className="hidden md:flex items-center gap-8">
           {NAV_LINKS.map((link) => (

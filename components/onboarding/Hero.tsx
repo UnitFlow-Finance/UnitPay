@@ -6,14 +6,14 @@ import { Section } from "./Section";
 
 export function Hero() {
   return (
-    <Section className="pt-16 pb-20 sm:pt-24 sm:pb-28 overflow-hidden">
+    <Section className="pt-10 pb-14 sm:pt-24 sm:pb-28 overflow-hidden">
       {/* Ambient glow, purely decorative */}
       <div
         aria-hidden
-        className="pointer-events-none absolute -top-24 left-1/2 -translate-x-1/2 w-[640px] h-[640px] rounded-full bg-primary/10 blur-3xl"
+        className="pointer-events-none absolute -top-24 left-1/2 hidden sm:block -translate-x-1/2 w-[640px] h-[640px] rounded-full bg-primary/10 blur-3xl"
       />
 
-      <div className="relative text-center max-w-3xl mx-auto space-y-6 sm:space-y-8">
+      <div className="relative text-center max-w-3xl mx-auto space-y-5 sm:space-y-8">
         <Reveal>
           <span className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3.5 py-1.5 text-xs font-medium text-muted">
             Built on Arc · Powered by Circle
@@ -21,7 +21,7 @@ export function Hero() {
         </Reveal>
 
         <Reveal delay={80}>
-          <h1 className="text-3xl sm:text-5xl lg:text-6xl font-semibold tracking-tight text-balance">
+          <h1 className="text-[2rem] leading-tight sm:text-5xl lg:text-6xl font-semibold tracking-tight text-balance">
             Money without borders,{" "}
             <span className="text-primary">settled in stablecoins.</span>
           </h1>
@@ -53,8 +53,8 @@ export function Hero() {
         </Reveal>
       </div>
 
-      <Reveal delay={320} className="mt-16 sm:mt-20">
-        <div className="max-w-2xl mx-auto rounded-3xl border border-border bg-surface/60 px-6 py-8 sm:px-10 sm:py-10">
+      <Reveal delay={320} className="mt-10 sm:mt-20">
+        <div className="max-w-2xl mx-auto rounded-2xl sm:rounded-3xl border border-border bg-surface/60 px-3 py-5 sm:px-10 sm:py-10">
           <RailFlow />
         </div>
       </Reveal>

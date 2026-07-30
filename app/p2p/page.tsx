@@ -17,7 +17,7 @@ import { LinkButton } from "@/components/ui/Button";
 import { Field, Select } from "@/components/ui/Input";
 
 export default function P2PMarketplacePage() {
-  const [side, setSide] = useState<P2POfferSide>("buy");
+  const [side, setSide] = useState<P2POfferSide | "all">("all");
   const [asset, setAsset] = useState("USDC");
   const [fiatCurrency, setFiatCurrency] = useState("USD");
   const [offers, setOffers] = useState<P2POffer[]>([]);
@@ -26,7 +26,7 @@ export default function P2PMarketplacePage() {
 
   const filters = useMemo(() => {
     const params = new URLSearchParams();
-    params.set("side", side);
+    if (side !== "all") params.set("side", side);
     params.set("asset", asset);
     params.set("fiatCurrency", fiatCurrency);
     return params;
@@ -57,7 +57,8 @@ export default function P2PMarketplacePage() {
       <div className="grid md:grid-cols-4 gap-4">
         <Card className="md:col-span-1 space-y-3 h-fit">
           <Field label="I want to">
-            <Select value={side} onChange={(event) => setSide(event.target.value as P2POfferSide)}>
+            <Select value={side} onChange={(event) => setSide(event.target.value as P2POfferSide | "all")}>
+              <option value="all">All offers</option>
               <option value="buy">Buy crypto</option>
               <option value="sell">Sell crypto</option>
             </Select>

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { listPodsRemote } from "@/lib/pods/client";
+import { migrateLegacyPods } from "@/lib/pods/migrateLegacy";
 import type { EscrowPodWithStats } from "@/lib/pods/types";
 import { useWallet } from "@/lib/useWallet";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -17,6 +18,7 @@ export default function EscrowPodsPage() {
   useEffect(() => {
     async function refresh() {
       try {
+        await migrateLegacyPods();
         setPods(await listPodsRemote());
       } catch (err) {
         setLoadError((err as Error).message ?? String(err));

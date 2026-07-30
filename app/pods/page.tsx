@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { listPodsRemote } from "@/lib/pods/client";
+import { migrateLegacyPods } from "@/lib/pods/migrateLegacy";
 import type { EscrowPodWithStats } from "@/lib/pods/types";
 import { Logo } from "@/components/Logo";
 import { Card } from "@/components/ui/Card";
@@ -15,6 +16,7 @@ export default function PublicPodsPage() {
   useEffect(() => {
     async function refresh() {
       try {
+        await migrateLegacyPods();
         setPods(await listPodsRemote("public"));
       } catch (err) {
         setLoadError((err as Error).message ?? String(err));
@@ -48,7 +50,8 @@ export default function PublicPodsPage() {
 
       {pods.length === 0 ? (
         <Card className="text-sm text-muted text-center py-8">
-          No public pods have been created in this browser yet.
+          No public pods are indexed yet. Create a public Pod or open this page from a browser
+          that has older local Pods so UnitPay can import them.
         </Card>
       ) : (
         <div className="space-y-3">

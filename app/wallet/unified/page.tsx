@@ -14,6 +14,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Field, Input, Select } from "@/components/ui/Input";
+import { AddressQrScanner } from "@/components/AddressQrScanner";
 
 type PanelMode = "overview" | "deposit" | "send";
 
@@ -33,8 +34,8 @@ type PanelMode = "overview" | "deposit" | "send";
  * external wallets/chains am I adding funds from" — not a bridge step.
  */
 export default function UnifiedBalancePage() {
-  const { primaryWallet, loading: walletLoading } = useWallet();
-  const gateway = useGatewayBalance(primaryWallet);
+  const { primaryWallet, wallets, loading: walletLoading } = useWallet();
+  const gateway = useGatewayBalance(wallets);
   const [mode, setMode] = useState<PanelMode>("overview");
 
   if (walletLoading) {
@@ -124,7 +125,7 @@ export default function UnifiedBalancePage() {
           )}
           {mode === "send" && (
             <SendPanel
-              walletId={primaryWallet.id}
+              wallets={wallets}
               sourceAddress={primaryWallet.address}
               perChain={gateway.perChain}
               onDone={() => gateway.refresh()}
@@ -215,12 +216,12 @@ interface PerChainBalance {
 }
 
 function SendPanel({
-  walletId,
+  wallets,
   sourceAddress,
   perChain,
   onDone,
 }: {
-  walletId: string;
+  wallets: { id: string; address: string; blockchain: string }[];
   sourceAddress: string;
   perChain: PerChainBalance[];
   onDone: () => void;
@@ -241,14 +242,32 @@ function SendPanel({
 
   const evmChainKeys = DEFAULT_SELECTOR_CHAINS.filter((k) => getChain(k).family === "evm");
 
+  function walletForChain(chainKey: string) {
+    const chain = getChain(chainKey);
+    const exact = wallets.find((wallet) => wallet.blockchain === chain.circleBlockchain);
+    if (exact) return exact;
+    if (chain.circleBlockchain === "EVM-TESTNET") {
+      return wallets.find((wallet) => wallet.blockchain === "EVM-TESTNET") ?? null;
+    }
+    return null;
+  }
+
   async function sendOneLeg(userToken: string, leg: AllocationLeg) {
     const recipientAddress = recipient.trim() || sourceAddress;
+    const sourceWallet = walletForChain(leg.chainKey);
+    const destinationWallet = walletForChain(destinationChainKey);
+    if (!sourceWallet || !destinationWallet) {
+      throw new Error(
+        "Enable wallets for the source and destination chains before sending from Gateway.",
+      );
+    }
     await sendGatewayUsdcLeg({
       userToken,
-      walletId,
+      sourceWalletId: sourceWallet.id,
+      destinationWalletId: destinationWallet.id,
       sourceChainKey: leg.chainKey,
       destinationChainKey,
-      sourceAddress,
+      sourceAddress: sourceWallet.address,
       recipientAddress,
       amount: leg.amount,
       executeChallenge,
@@ -350,6 +369,7 @@ function SendPanel({
           className="font-mono"
         />
       </Field>
+      <AddressQrScanner onValue={setRecipient} />
 
       <Field label="Deliver on">
         <Select

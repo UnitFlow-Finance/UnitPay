@@ -76,6 +76,9 @@ export default function ReceivePage() {
           Use this only when a sender needs a raw address on{" "}
           {chainLabelForBlockchain(primaryWallet.blockchain)}.
         </p>
+        <div className="mx-auto bg-white p-3 rounded-xl w-fit">
+          <QRCodeSVG value={primaryWallet.address} size={160} />
+        </div>
         <Button onClick={copyAddress} fullWidth>
           {copied ? "Copied!" : "Copy address"}
         </Button>

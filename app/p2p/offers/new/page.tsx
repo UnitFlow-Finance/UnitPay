@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import Link from "next/link";
 import { createP2POfferRemote } from "@/lib/p2p/client";
 import { P2P_ASSETS, P2P_FIAT_CURRENCIES, P2P_PAYMENT_METHODS, type P2POfferSide } from "@/lib/p2p/types";
 import { useWallet } from "@/lib/useWallet";
@@ -12,7 +13,7 @@ import { Field, Input, Select, Textarea } from "@/components/ui/Input";
 
 export default function NewP2POfferPage() {
   const router = useRouter();
-  const { primaryWallet } = useWallet();
+  const { primaryWallet, loading } = useWallet();
   const [side, setSide] = useState<P2POfferSide>("sell");
   const [asset, setAsset] = useState("USDC");
   const [fiatCurrency, setFiatCurrency] = useState("USD");
@@ -22,11 +23,30 @@ export default function NewP2POfferPage() {
   const [availableAmount, setAvailableAmount] = useState("500");
   const [paymentMethod, setPaymentMethod] = useState("Bank Transfer");
   const [terms, setTerms] = useState("");
+  const [status, setStatus] = useState<"idle" | "working">("idle");
   const [error, setError] = useState<string | null>(null);
 
   async function handleCreate() {
     if (!primaryWallet) return;
     setError(null);
+    const numericFields = [
+      ["price", price],
+      ["minimum amount", minAmount],
+      ["maximum amount", maxAmount],
+      ["available amount", availableAmount],
+    ] as const;
+    for (const [label, value] of numericFields) {
+      const numeric = Number(value);
+      if (!value || Number.isNaN(numeric) || numeric <= 0) {
+        setError(`Enter a valid ${label}.`);
+        return;
+      }
+    }
+    if (Number(minAmount) > Number(maxAmount)) {
+      setError("Minimum amount cannot exceed maximum amount.");
+      return;
+    }
+    setStatus("working");
     try {
       const offer = await createP2POfferRemote({
         creatorWalletId: primaryWallet.address,
@@ -44,7 +64,29 @@ export default function NewP2POfferPage() {
       router.push(`/p2p/offers/${offer.id}`);
     } catch (err) {
       setError((err as Error).message ?? String(err));
+      setStatus("idle");
     }
+  }
+
+  if (loading) {
+    return (
+      <main className="min-h-full flex items-center justify-center px-6">
+        <p className="text-muted text-sm">Loading wallet...</p>
+      </main>
+    );
+  }
+
+  if (!primaryWallet) {
+    return (
+      <main className="min-h-full flex items-center justify-center px-6">
+        <div className="text-center space-y-3">
+          <p className="text-muted text-sm">Create or log into a wallet before creating P2P offers.</p>
+          <Link href="/onboarding/wallet" className="text-accent text-sm underline">
+            Set up wallet
+          </Link>
+        </div>
+      </main>
+    );
   }
 
   return (
@@ -100,8 +142,8 @@ export default function NewP2POfferPage() {
           <Textarea value={terms} onChange={(event) => setTerms(event.target.value)} rows={4} />
         </Field>
         {error && <p className="text-error text-sm">{error}</p>}
-        <Button onClick={handleCreate} size="lg" fullWidth disabled={!primaryWallet}>
-          Create offer
+        <Button onClick={handleCreate} size="lg" fullWidth disabled={status === "working"}>
+          {status === "working" ? "Creating..." : "Create offer"}
         </Button>
       </Card>
     </main>

@@ -109,6 +109,82 @@ export async function createPod(input: NewPodInput): Promise<EscrowPodWithStats>
   });
 }
 
+export async function importPods(input: {
+  pods: Array<Partial<EscrowPod>>;
+  contributions?: Array<Partial<EscrowPodContribution>>;
+}): Promise<EscrowPodWithStats[]> {
+  return updateDb((db) => {
+    const now = new Date().toISOString();
+    const imported: EscrowPodWithStats[] = [];
+
+    for (const entry of input.pods) {
+      if (
+        !entry.id ||
+        !entry.title ||
+        !entry.description ||
+        !entry.creatorAddress ||
+        !entry.treasuryAddress ||
+        !entry.blockchain
+      ) {
+        continue;
+      }
+
+      let pod = db.pods.find((existing) => existing.id === entry.id);
+      if (!pod) {
+        pod = {
+          id: entry.id,
+          title: entry.title,
+          description: entry.description,
+          creatorAddress: entry.creatorAddress,
+          creatorLabel: entry.creatorLabel,
+          treasuryAddress: entry.treasuryAddress,
+          blockchain: entry.blockchain,
+          visibility: entry.visibility === "private" ? "private" : "public",
+          whitelist: Array.isArray(entry.whitelist)
+            ? entry.whitelist.map(normalizeAddress).filter(Boolean)
+            : [],
+          targetAmount: entry.targetAmount,
+          status:
+            entry.status === "Completed" ||
+            entry.status === "Closed" ||
+            entry.status === "Pending approval"
+              ? entry.status
+              : "Open",
+          createdAt: entry.createdAt ?? now,
+          updatedAt: entry.updatedAt ?? entry.createdAt ?? now,
+          paymentLink: entry.paymentLink,
+        };
+        db.pods.unshift(pod);
+        db.activity.unshift({
+          id: crypto.randomUUID(),
+          podId: pod.id,
+          type: "created",
+          message: "Legacy pod imported into discovery.",
+          createdAt: now,
+        });
+      }
+
+      imported.push(toStats(db, pod));
+    }
+
+    for (const entry of input.contributions ?? []) {
+      if (!entry.podId || !entry.contributorAddress || !entry.amount) continue;
+      const exists = entry.id && db.contributions.some((existing) => existing.id === entry.id);
+      if (exists) continue;
+      db.contributions.unshift({
+        id: entry.id ?? crypto.randomUUID(),
+        podId: entry.podId,
+        contributorAddress: entry.contributorAddress,
+        amount: entry.amount,
+        txHash: entry.txHash,
+        createdAt: entry.createdAt ?? now,
+      });
+    }
+
+    return imported.map((pod) => toStats(db, pod));
+  });
+}
+
 export async function addContribution(input: {
   podId: string;
   contributorAddress: string;

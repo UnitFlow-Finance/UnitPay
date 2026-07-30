@@ -10,7 +10,8 @@ type ExecuteChallenge = (challengeId: string) => Promise<{
 
 export interface GatewayTransferLegInput {
   userToken: string;
-  walletId: string;
+  sourceWalletId: string;
+  destinationWalletId: string;
   sourceChainKey: string;
   destinationChainKey: string;
   sourceAddress: string;
@@ -35,7 +36,8 @@ function readSignature(value: unknown): string | null {
 
 export async function sendGatewayUsdcLeg({
   userToken,
-  walletId,
+  sourceWalletId,
+  destinationWalletId,
   sourceChainKey,
   destinationChainKey,
   sourceAddress,
@@ -48,7 +50,7 @@ export async function sendGatewayUsdcLeg({
     burnIntent: unknown;
   }>("/api/gateway/transfer/build-burn-intent", {
     userToken,
-    walletId,
+    walletId: sourceWalletId,
     sourceChainKey,
     destinationChainKey,
     sourceAddress,
@@ -69,7 +71,7 @@ export async function sendGatewayUsdcLeg({
 
   const { challengeId: mintChallengeId } = await apiPost<{ challengeId: string }>(
     "/api/gateway/transfer/mint",
-    { userToken, walletId, attestation, signature: mintSignature },
+    { userToken, walletId: destinationWalletId, attestation, signature: mintSignature },
   );
   if (!mintChallengeId) throw new Error("No mint challenge returned from server.");
   await executeChallenge(mintChallengeId);

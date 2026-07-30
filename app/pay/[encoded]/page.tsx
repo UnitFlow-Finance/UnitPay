@@ -36,8 +36,8 @@ export default function FulfillPaymentRequestPage({
 }) {
   const { encoded } = use(params);
   const router = useRouter();
-  const { primaryWallet, loading: walletLoading } = useWallet();
-  const gateway = useGatewayBalance(primaryWallet);
+  const { primaryWallet, wallets, loading: walletLoading } = useWallet();
+  const gateway = useGatewayBalance(wallets);
   const { executeChallenge } = useCircleSdk();
   const [step, setStep] = useState<Step>("review");
   const [error, setError] = useState<string | null>(null);
@@ -136,12 +136,27 @@ export default function FulfillPaymentRequestPage({
         );
 
         for (const leg of legs) {
+          const sourceChain = getChain(leg.chainKey);
+          const sourceWallet =
+            wallets.find((wallet) => wallet.blockchain === sourceChain.circleBlockchain) ??
+            (sourceChain.circleBlockchain === "EVM-TESTNET"
+              ? wallets.find((wallet) => wallet.blockchain === "EVM-TESTNET")
+              : null);
+          const destinationWallet =
+            wallets.find((wallet) => wallet.blockchain === chain.circleBlockchain) ??
+            (chain.circleBlockchain === "EVM-TESTNET"
+              ? wallets.find((wallet) => wallet.blockchain === "EVM-TESTNET")
+              : null);
+          if (!sourceWallet || !destinationWallet) {
+            throw new Error("Enable wallets for the payment source and destination chains first.");
+          }
           await sendGatewayUsdcLeg({
             userToken,
-            walletId: primaryWallet.id,
+            sourceWalletId: sourceWallet.id,
+            destinationWalletId: destinationWallet.id,
             sourceChainKey: leg.chainKey,
             destinationChainKey: chain.key,
-            sourceAddress: primaryWallet.address,
+            sourceAddress: sourceWallet.address,
             recipientAddress: request.requesterAddress,
             amount: leg.amount,
             executeChallenge,

@@ -105,7 +105,7 @@ export default function UniversalQrPage() {
           </div>
           <div className="flex justify-center">
             <div className="bg-white p-4 rounded-xl">
-              <QRCodeSVG value={`${generatedValue}:${amount}:${note}`} size={200} />
+              <QRCodeSVG value={generatedValue} size={200} />
             </div>
           </div>
           <p className="text-xs text-muted">

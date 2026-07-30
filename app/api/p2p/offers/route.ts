@@ -17,6 +17,18 @@ export async function POST(request: Request) {
     for (const key of ["creatorWalletId", "creatorCircleWalletId", "side", "asset", "fiatCurrency"]) {
       if (!body?.[key]) return NextResponse.json({ error: `Missing ${key}` }, { status: 400 });
     }
+    for (const key of ["price", "minAmount", "maxAmount", "availableAmount"]) {
+      const value = Number(body?.[key]);
+      if (!body?.[key] || Number.isNaN(value) || value <= 0) {
+        return NextResponse.json({ error: `Invalid ${key}` }, { status: 400 });
+      }
+    }
+    if (Number(body.minAmount) > Number(body.maxAmount)) {
+      return NextResponse.json(
+        { error: "minAmount cannot be greater than maxAmount" },
+        { status: 400 },
+      );
+    }
     const offer = await createP2POffer({
       merchantId: body.merchantId ? String(body.merchantId) : undefined,
       creatorWalletId: String(body.creatorWalletId),

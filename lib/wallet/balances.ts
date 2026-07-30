@@ -14,14 +14,30 @@ export function uniqueTokenKey(balance: UnitPayTokenBalance): string {
 }
 
 export function primaryUsdcBalance(balances: UnitPayTokenBalance[]): UnitPayTokenBalance | null {
-  return balances.find((entry) => tokenSymbol(entry) === "USDC" || entry.token.isNative) ?? null;
+  return displayTokenBalances(balances).find((entry) => tokenSymbol(entry) === "USDC" || entry.token.isNative) ?? null;
+}
+
+export function displayTokenBalances(balances: UnitPayTokenBalance[]): UnitPayTokenBalance[] {
+  const result: UnitPayTokenBalance[] = [];
+  for (const balance of balances) {
+    const symbol = tokenSymbol(balance);
+    const duplicateNativeUsdc = result.some(
+      (entry) =>
+        tokenSymbol(entry) === symbol &&
+        symbol === "USDC" &&
+        entry.amount === balance.amount &&
+        (entry.token.isNative || balance.token.isNative),
+    );
+    if (!duplicateNativeUsdc) result.push(balance);
+  }
+  return result;
 }
 
 export function groupTotalBySymbol(
   walletBalances: UnitPayWalletBalanceGroup[],
 ): Record<string, number> {
   return walletBalances.reduce<Record<string, number>>((totals, group) => {
-    for (const balance of group.tokenBalances) {
+    for (const balance of displayTokenBalances(group.tokenBalances)) {
       const symbol = tokenSymbol(balance);
       totals[symbol] = (totals[symbol] ?? 0) + tokenAmount(balance);
     }

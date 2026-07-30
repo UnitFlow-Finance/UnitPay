@@ -26,36 +26,60 @@ export interface GatewayBalanceEntry {
  * the kit directly from the browser (same as any other public Gateway
  * REST read) rather than round-tripping through our own API routes.
  */
-export function useGatewayBalance(wallet: UnitPayWallet | null) {
+export function useGatewayBalance(walletInput: UnitPayWallet | UnitPayWallet[] | null) {
   const [total, setTotal] = useState("0");
   const [perChain, setPerChain] = useState<GatewayBalanceEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    if (!wallet) return;
+    if (!walletInput || (Array.isArray(walletInput) && walletInput.length === 0)) return;
     setLoading(true);
     setError(null);
     try {
       const evmChains = listEvmChains();
       const context = getUnifiedBalanceKitContext();
+      const wallets = Array.isArray(walletInput)
+        ? walletInput
+        : walletInput
+          ? [walletInput]
+          : [];
+      const addresses = Array.from(
+        new Set(
+          wallets
+            .filter((wallet) => wallet.blockchain !== "SOL-DEVNET")
+            .map((wallet) => wallet.address.toLowerCase()),
+        ),
+      );
+      if (addresses.length === 0) {
+        setPerChain([]);
+        setTotal("0");
+        return;
+      }
 
-      const result = await getBalances(context, {
-        token: "USDC",
-        networkType: "testnet",
-        sources: {
-          address: wallet.address,
-          chains: evmChains.map((c) => c.unifiedBalanceChain) as UnifiedBalanceChainIdentifier[],
-        },
-      });
+      const results = await Promise.all(
+        addresses.map((address) =>
+          getBalances(context, {
+            token: "USDC",
+            networkType: "testnet",
+            sources: {
+              address,
+              chains: evmChains.map((c) => c.unifiedBalanceChain) as UnifiedBalanceChainIdentifier[],
+            },
+          }),
+        ),
+      );
 
-      const chainBreakdowns = result.breakdown[0]?.breakdown ?? [];
       const entries: GatewayBalanceEntry[] = evmChains.map((chain) => {
-        const match = chainBreakdowns.find((b) => b.chain === chain.unifiedBalanceChain);
+        const totalBaseUnits = results.reduce((sum, result) => {
+          const chainBreakdowns = result.breakdown[0]?.breakdown ?? [];
+          const match = chainBreakdowns.find((b) => b.chain === chain.unifiedBalanceChain);
+          return sum + usdcToBaseUnits(match?.confirmedBalance ?? "0");
+        }, 0n);
         return {
           chainKey: chain.key,
           chainLabel: chain.label,
-          balance: match?.confirmedBalance ?? "0",
+          balance: usdcFromBaseUnits(totalBaseUnits),
         };
       });
 
@@ -70,7 +94,7 @@ export function useGatewayBalance(wallet: UnitPayWallet | null) {
     } finally {
       setLoading(false);
     }
-  }, [wallet]);
+  }, [walletInput]);
 
   useEffect(() => {
     let cancelled = false;

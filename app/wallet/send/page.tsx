@@ -8,6 +8,7 @@ import { useCircleSdk } from "@/lib/circle/sdkContext";
 import { useWallet } from "@/lib/useWallet";
 import {
   tokenAmount,
+  displayTokenBalances,
   tokenSymbol,
   uniqueTokenKey,
   walletChainLabel,
@@ -16,6 +17,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Field, Input, Select } from "@/components/ui/Input";
+import { AddressQrScanner } from "@/components/AddressQrScanner";
 
 type Step = "form" | "confirm" | "working" | "done" | "error";
 
@@ -58,7 +60,7 @@ export default function SendPage() {
 
   const selectedGroup =
     walletBalances.find((group) => group.wallet.id === selectedWalletId) ?? walletBalances[0];
-  const selectedBalances = selectedGroup?.tokenBalances ?? [];
+  const selectedBalances = displayTokenBalances(selectedGroup?.tokenBalances ?? []);
   const selectedToken =
     selectedBalances.find((balance) => uniqueTokenKey(balance) === selectedTokenKey) ??
     selectedBalances.find((balance) => tokenSymbol(balance) === "USDC") ??
@@ -197,6 +199,7 @@ export default function SendPage() {
               className="font-mono"
             />
           </Field>
+          <AddressQrScanner onValue={setDestination} />
 
           <Field label={`Amount (${selectedSymbol})`}>
             <Input

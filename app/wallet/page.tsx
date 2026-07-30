@@ -32,6 +32,7 @@ import { useWallet } from "@/lib/useWallet";
 import {
   groupTotalBySymbol,
   primaryUsdcBalance,
+  displayTokenBalances,
   tokenSymbol,
   walletChainLabel,
 } from "@/lib/wallet/balances";
@@ -41,7 +42,7 @@ export default function WalletDashboardPage() {
   const { executeChallenge } = useCircleSdk();
   const { loading, error, wallets, primaryWallet, walletBalances, transactions, userToken, refresh } =
     useWallet();
-  const gateway = useGatewayBalance(primaryWallet);
+  const gateway = useGatewayBalance(wallets);
   const [chainToCreate, setChainToCreate] = useState<string>(DEFAULT_SELECTOR_CHAINS[1]);
   const [createStatus, setCreateStatus] = useState<"idle" | "working" | "done" | "error">("idle");
   const [createMessage, setCreateMessage] = useState<string | null>(null);
@@ -100,7 +101,6 @@ export default function WalletDashboardPage() {
   ];
   const totalsBySymbol = groupTotalBySymbol(walletBalances);
   const personalUsdcTotal = totalsBySymbol.USDC ?? 0;
-  const combinedTotal = personalUsdcTotal + (Number(gateway.total) || 0);
   const existingBlockchains = new Set(wallets.map((wallet) => wallet.blockchain));
   const createChain = getChain(chainToCreate);
 
@@ -142,15 +142,17 @@ export default function WalletDashboardPage() {
             <Card className="space-y-3 hover:border-primary/40 transition-colors">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-xs text-muted uppercase tracking-wide">Combined total</p>
-                  <p className="text-2xl font-semibold">{combinedTotal.toFixed(2)} USDC</p>
+                  <p className="text-xs text-muted uppercase tracking-wide">Gateway balance</p>
+                  <p className="text-2xl font-semibold">
+                    {gateway.loading ? "..." : gateway.total} USDC
+                  </p>
                 </div>
                 <Globe2 className="w-6 h-6 text-primary" />
               </div>
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div>
-                  <p className="text-xs text-muted">Gateway balance</p>
-                  <p className="font-medium">{gateway.loading ? "..." : gateway.total} USDC</p>
+                  <p className="text-xs text-muted">Unified Gateway</p>
+                  <p className="font-medium">Cross-chain USDC</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted">Personal wallet</p>
@@ -187,6 +189,7 @@ export default function WalletDashboardPage() {
 
             <div className="space-y-2">
               {walletBalances.map((group) => {
+                const displayBalances = displayTokenBalances(group.tokenBalances);
                 const usdc = primaryUsdcBalance(group.tokenBalances);
                 return (
                   <Link key={group.wallet.id} href={`/wallet/chains/${group.wallet.id}`}>
@@ -203,7 +206,7 @@ export default function WalletDashboardPage() {
                         </span>
                       </div>
                       <div className="mt-2 flex flex-wrap gap-1.5">
-                        {group.tokenBalances.slice(0, 5).map((balance) => (
+                        {displayBalances.slice(0, 5).map((balance) => (
                           <span
                             key={`${group.wallet.id}-${balance.token.id ?? balance.token.tokenAddress ?? tokenSymbol(balance)}`}
                             className="rounded-lg bg-surface px-2 py-1 text-[11px] text-muted"

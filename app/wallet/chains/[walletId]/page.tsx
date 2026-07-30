@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/Card";
 import { LinkButton } from "@/components/ui/Button";
 import { TransactionHistory } from "@/components/TransactionHistory";
 import { useWallet } from "@/lib/useWallet";
-import { tokenSymbol, walletChainLabel } from "@/lib/wallet/balances";
+import { displayTokenBalances, tokenSymbol, walletChainLabel } from "@/lib/wallet/balances";
 
 export default function WalletChainDetailPage({
   params,
@@ -16,6 +16,7 @@ export default function WalletChainDetailPage({
   const { walletId } = use(params);
   const { walletBalances, transactions } = useWallet();
   const group = walletBalances.find((entry) => entry.wallet.id === walletId);
+  const displayBalances = displayTokenBalances(group?.tokenBalances ?? []);
   const chainTransactions = transactions.filter(
     (tx) => tx.blockchain === group?.wallet.blockchain,
   );
@@ -50,10 +51,10 @@ export default function WalletChainDetailPage({
             Send
           </LinkButton>
         </div>
-        {group.tokenBalances.length === 0 ? (
+        {displayBalances.length === 0 ? (
           <p className="text-sm text-muted">No token balances on this chain yet.</p>
         ) : (
-          group.tokenBalances.map((balance) => (
+          displayBalances.map((balance) => (
             <div key={balance.token.id ?? balance.token.tokenAddress ?? tokenSymbol(balance)} className="flex justify-between gap-3 text-sm">
               <span>{balance.token.name || tokenSymbol(balance)}</span>
               <span className="font-medium">
