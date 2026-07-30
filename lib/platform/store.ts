@@ -9,11 +9,14 @@ import {
   parseAbi,
   toBytes,
   type Address,
-  type Hex,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { arcTestnet } from "viem/chains";
 import { METADATA_REGISTRY_ARC_TESTNET } from "@/lib/chains/config";
+import {
+  normalizeRegistryPrivateKey,
+  REGISTRY_SIGNER_MALFORMED_ERROR,
+} from "@/lib/platform/registrySigner";
 
 const STORE_KIND = keccak256(toBytes("unitpay.platform.store.v1"));
 const queues = new Map<string, Promise<unknown>>();
@@ -40,14 +43,8 @@ function registryAddress(): Address | null {
   return raw;
 }
 
-function registryPrivateKey(): Hex {
-  const raw = process.env.UNITPAY_METADATA_REGISTRY_PRIVATE_KEY;
-  if (!raw) {
-    throw new Error(
-      "On-chain UnitPay storage requires UNITPAY_METADATA_REGISTRY_PRIVATE_KEY configured as a secure deployment secret.",
-    );
-  }
-  return raw.startsWith("0x") ? (raw as Hex) : (`0x${raw}` as Hex);
+function registryPrivateKey() {
+  return normalizeRegistryPrivateKey(process.env.UNITPAY_METADATA_REGISTRY_PRIVATE_KEY);
 }
 
 function shouldUseMemoryStore(): boolean {
@@ -62,7 +59,16 @@ function getPublicClient() {
 }
 
 function getWalletClient() {
-  const account = privateKeyToAccount(registryPrivateKey());
+  let account: ReturnType<typeof privateKeyToAccount>;
+  try {
+    account = privateKeyToAccount(registryPrivateKey());
+  } catch (error) {
+    const message = (error as Error).message;
+    if (message.includes("private key")) {
+      throw new Error(REGISTRY_SIGNER_MALFORMED_ERROR);
+    }
+    throw error;
+  }
   return createWalletClient({
     account,
     chain: arcTestnet,

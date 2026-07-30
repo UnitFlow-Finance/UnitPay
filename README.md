@@ -101,6 +101,13 @@ See [`.env.example`](.env.example) for the full list with explanations.
 At minimum you need a **testnet** Circle Developer API key and a User
 Controlled Wallets App ID from the [Circle Console](https://console.circle.com).
 
+Registry-backed metadata writes use `UNITPAY_METADATA_REGISTRY_PRIVATE_KEY`
+as a deployment secret. Configure it only in the hosting platform's secret
+manager, never in a committed env file. The value must be a single 32-byte
+hex private key (`0x` + 64 hex characters, or 64 hex characters without the
+prefix); do not paste an assignment line such as
+`UNITPAY_METADATA_REGISTRY_PRIVATE_KEY=...`, a mnemonic, or JSON key text.
+
 ### Tests
 
 ```bash
