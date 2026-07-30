@@ -25,5 +25,10 @@
   "unitPayMerchantUpgradedAt": "2026-07-09T15:58:16.378Z",
   "unitPayMerchantUpgradeTxHash": "0x814e3a76165d2e2d2e4eb219ce08489fbc1ecedb6b703b63d6b4a0ba0f7c8e07",
   "unitPayEscrowPreviousAddress": "0x366bae4c172c63e17430445fb5a6ad53757c04b1",
-  "unitPayPacketPreviousAddress": "0xd52a5e68001b1b4b4feb721b6abdf664a6793596"
+  "unitPayPacketPreviousAddress": "0xd52a5e68001b1b4b4feb721b6abdf664a6793596",
+  "unitPayMetadataRegistry": "0xf943340899883Ee20C4f5adF2D489a0c5b4eE773",
+  "unitPayMetadataRegistryDeployMethod": "hardhat",
+  "unitPayMetadataRegistryDeployerAddress": "0x3682652cD0995E6972CCF7245a1CAea95C2955b8",
+  "unitPayMetadataRegistryTxHash": "0xdce81845ee9414e33cb1279dd4f784427677d0248431d637ef77608b4032effa",
+  "unitPayMetadataRegistryDeployedAt": "2026-07-30T12:43:44.053Z"
 }

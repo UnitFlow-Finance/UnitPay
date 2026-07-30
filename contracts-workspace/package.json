@@ -8,7 +8,8 @@
     "test": "hardhat test",
     "deploy:arcTestnet": "hardhat run scripts/deploy.js --network arcTestnet",
     "deploy:escrow:circle": "node scripts/deploy-circle.js UnitPayEscrow 0x3600000000000000000000000000000000000000",
-    "deploy:packet:circle": "node scripts/deploy-circle.js UnitPayPacket 0x3600000000000000000000000000000000000000"
+    "deploy:packet:circle": "node scripts/deploy-circle.js UnitPayPacket 0x3600000000000000000000000000000000000000",
+    "deploy:metadata:arcTestnet": "REDEPLOY_CONTRACT=UnitPayMetadataRegistry hardhat run scripts/redeploy-standalone.js --network arcTestnet"
   },
   "license": "MIT",
   "devDependencies": {

@@ -1,5 +1,6 @@
 // Redeploy script for Arc Testnet ONLY — unproxied contracts that have no
-// upgrade path (UnitPayEscrow, UnitPayPacket). These were originally
+// upgrade path (UnitPayEscrow, UnitPayPacket, UnitPayMetadataRegistry). Escrow
+// and Packet were originally
 // deployed via Circle's Smart Contract Platform SDK (see
 // scripts/deploy-circle.js) when no funded private key was available;
 // now that one is, a plain Hardhat deploy is simpler and produces an
@@ -18,6 +19,7 @@ const ARC_TESTNET_USDC = "0x3600000000000000000000000000000000000000";
 const DEPLOYMENT_KEY_BY_CONTRACT = {
   UnitPayEscrow: "unitPayEscrow",
   UnitPayPacket: "unitPayPacket",
+  UnitPayMetadataRegistry: "unitPayMetadataRegistry",
 };
 
 async function main() {
@@ -38,18 +40,29 @@ async function main() {
   console.log(`Deploying ${contractName} with signer ${signer.address}`);
 
   const Factory = await ethers.getContractFactory(contractName);
-  const instance = await Factory.deploy(ARC_TESTNET_USDC);
+  const instance =
+    contractName === "UnitPayMetadataRegistry"
+      ? await Factory.deploy()
+      : await Factory.deploy(ARC_TESTNET_USDC);
   await instance.waitForDeployment();
   const address = await instance.getAddress();
   const deployTx = instance.deploymentTransaction();
 
   console.log(`${contractName} deployed to ${address} (tx ${deployTx.hash})`);
 
-  const usdcOnChain = await instance.usdc();
-  if (usdcOnChain.toLowerCase() !== ARC_TESTNET_USDC.toLowerCase()) {
-    throw new Error(`Sanity check failed: usdc() returned ${usdcOnChain}`);
+  if (contractName !== "UnitPayMetadataRegistry") {
+    const usdcOnChain = await instance.usdc();
+    if (usdcOnChain.toLowerCase() !== ARC_TESTNET_USDC.toLowerCase()) {
+      throw new Error(`Sanity check failed: usdc() returned ${usdcOnChain}`);
+    }
+    console.log(`Sanity check passed: usdc() == ${usdcOnChain}`);
+  } else {
+    const owner = await instance.owner();
+    if (owner.toLowerCase() !== signer.address.toLowerCase()) {
+      throw new Error(`Sanity check failed: owner() returned ${owner}`);
+    }
+    console.log(`Sanity check passed: owner() == ${owner}`);
   }
-  console.log(`Sanity check passed: usdc() == ${usdcOnChain}`);
 
   const deploymentsPath = path.join(__dirname, "..", "deployments.arcTestnet.json");
   const deployments = JSON.parse(fs.readFileSync(deploymentsPath, "utf-8"));

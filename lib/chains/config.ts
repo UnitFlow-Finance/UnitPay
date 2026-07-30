@@ -124,6 +124,16 @@ export const PACKET_ARC_TESTNET = {
 } as const;
 
 /**
+ * UnitPayMetadataRegistry.sol, deployed to Arc Testnet as the durable on-chain
+ * metadata store for pods, P2P records, custom tokens, arbitrator rules,
+ * virtual cards, and collaborative payment-link pod metadata. Writes are made
+ * by a configured server-side relayer key; reads are public chain reads.
+ */
+export const METADATA_REGISTRY_ARC_TESTNET = {
+  address: "0xf943340899883Ee20C4f5adF2D489a0c5b4eE773",
+} as const;
+
+/**
  * All chains this build supports, keyed by internal `key`.
  * Arc Testnet is the default/primary chain per the product spec.
  */
