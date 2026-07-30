@@ -7,8 +7,6 @@ import { Logo } from "./Logo";
 
 const NAV_ITEMS = [
   { href: "/wallet", label: "Wallet", icon: Home },
-  { href: "/wallet/send", label: "Send", icon: Send },
-  { href: "/wallet/receive", label: "Receive", icon: QrCode },
   { href: "/wallet/unified", label: "Gateway", icon: Globe2 },
   { href: "/wallet/pods", label: "Pods", icon: Users },
   { href: "/p2p", label: "P2P", icon: HandCoins },
