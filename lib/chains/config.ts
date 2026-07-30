@@ -130,7 +130,7 @@ export const PACKET_ARC_TESTNET = {
  * by a configured server-side relayer key; reads are public chain reads.
  */
 export const METADATA_REGISTRY_ARC_TESTNET = {
-  address: "0xf943340899883Ee20C4f5adF2D489a0c5b4eE773",
+  address: "0x100012Cd3BFBd6af56dAd2E0a874001f1De5038e",
 } as const;
 
 /**

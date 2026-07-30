@@ -1,5 +1,6 @@
 import "server-only";
 import { NextResponse } from "next/server";
+import { ApiRouteError } from "@/lib/circle/routeErrors";
 
 /**
  * Circle SDK errors carry the original HTTP status + response body on
@@ -7,6 +8,10 @@ import { NextResponse } from "next/server";
  * Circle's documented error codes (e.g. 155106 "user already initialized").
  */
 export function circleErrorResponse(error: unknown) {
+  if (error instanceof ApiRouteError) {
+    return NextResponse.json({ error: error.message }, { status: error.status });
+  }
+
   const err = error as { response?: { status?: number; data?: unknown }; message?: string };
   const status = err.response?.status ?? 500;
   const data = err.response?.data ?? { error: err.message ?? String(error) };

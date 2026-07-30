@@ -10,6 +10,7 @@ import { useGatewayBalance } from "@/lib/useGatewayBalance";
 import { useWallet } from "@/lib/useWallet";
 import { allocateSourceChains, type AllocationLeg } from "@/lib/gateway/allocate";
 import { sendGatewayUsdcLeg } from "@/lib/gateway/transferClient";
+import { walletForChainKey } from "@/lib/wallet/selectors";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -121,7 +122,7 @@ export default function UnifiedBalancePage() {
           </div>
 
           {mode === "deposit" && (
-            <DepositPanel walletId={primaryWallet.id} onDone={() => gateway.refresh()} />
+            <DepositPanel wallets={wallets} onDone={() => gateway.refresh()} />
           )}
           {mode === "send" && (
             <SendPanel
@@ -137,7 +138,13 @@ export default function UnifiedBalancePage() {
   );
 }
 
-function DepositPanel({ walletId, onDone }: { walletId: string; onDone: () => void }) {
+function DepositPanel({
+  wallets,
+  onDone,
+}: {
+  wallets: { id: string; address: string; blockchain: string }[];
+  onDone: () => void;
+}) {
   const { executeChallenge } = useCircleSdk();
   const [chainKey, setChainKey] = useState<string>(DEFAULT_SELECTOR_CHAINS[0]);
   const [amount, setAmount] = useState("");
@@ -152,10 +159,14 @@ function DepositPanel({ walletId, onDone }: { walletId: string; onDone: () => vo
     try {
       const userToken = window.localStorage.getItem("unitpay.userToken");
       if (!userToken) throw new Error("Session expired — please reload.");
+      const sourceWallet = walletForChainKey(wallets, chainKey);
+      if (!sourceWallet) {
+        throw new Error(`Create a ${getChain(chainKey).label} wallet before depositing from that chain.`);
+      }
 
       const { challengeId: approveChallengeId } = await apiPost<{ challengeId: string }>(
         "/api/gateway/deposit",
-        { userToken, walletId, chainKey, amount },
+        { userToken, walletId: sourceWallet.id, chainKey, amount },
       );
       await executeChallenge(approveChallengeId);
 
@@ -163,7 +174,7 @@ function DepositPanel({ walletId, onDone }: { walletId: string; onDone: () => vo
       setMessage("Depositing into your unified balance...");
       const { challengeId: depositChallengeId } = await apiPost<{ challengeId: string }>(
         "/api/gateway/deposit-confirm",
-        { userToken, walletId, chainKey, amount },
+        { userToken, walletId: sourceWallet.id, chainKey, amount },
       );
       await executeChallenge(depositChallengeId);
 

@@ -5,6 +5,7 @@ import { useState } from "react";
 import { apiPost } from "@/lib/api";
 import { useCircleSdk } from "@/lib/circle/sdkContext";
 import { useWallet } from "@/lib/useWallet";
+import { walletForChainKey } from "@/lib/wallet/selectors";
 import { escrowFragmentStorageKey, prepareEscrowTerms } from "@/lib/escrow/terms";
 import { findEscrowIdByTermsHash } from "@/lib/escrow/contract";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -30,7 +31,7 @@ const EXPIRY_OPTIONS: { label: string; seconds: number }[] = [
  */
 export default function NewEscrowPage() {
   const router = useRouter();
-  const { primaryWallet } = useWallet();
+  const { wallets } = useWallet();
   const { executeChallenge } = useCircleSdk();
 
   const [title, setTitle] = useState("");
@@ -48,7 +49,9 @@ export default function NewEscrowPage() {
   const [escrowId, setEscrowId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  if (!primaryWallet) {
+  const arcWallet = walletForChainKey(wallets, "arcTestnet");
+
+  if (!arcWallet) {
     return (
       <main className="min-h-full flex items-center justify-center px-6">
         <p className="text-muted text-sm">No wallet found.</p>
@@ -77,6 +80,7 @@ export default function NewEscrowPage() {
     setStep("working");
     setMessage("Encrypting task terms...");
     try {
+      if (!arcWallet) throw new Error("Create an Arc Testnet wallet before creating an escrow.");
       const userToken = window.localStorage.getItem("unitpay.userToken");
       if (!userToken) throw new Error("Session expired — please reload.");
 
@@ -90,7 +94,7 @@ export default function NewEscrowPage() {
       setMessage("Approving UnitPayEscrow to lock your USDC...");
       const { challengeId: approveChallengeId } = await apiPost<{ challengeId: string }>(
         "/api/escrow/approve",
-        { userToken, walletId: primaryWallet!.id, amount },
+        { userToken, walletId: arcWallet.id, amount },
       );
       await executeChallenge(approveChallengeId);
 
@@ -99,7 +103,7 @@ export default function NewEscrowPage() {
         "/api/escrow/create",
         {
           userToken,
-          walletId: primaryWallet!.id,
+          walletId: arcWallet.id,
           payee: payee.trim(),
           arbiter: arbiter.trim() || undefined,
           amount,
@@ -116,7 +120,7 @@ export default function NewEscrowPage() {
       // against any other concurrent createEscrow call.
       setMessage("Confirming on-chain...");
       const foundId = await findEscrowIdByTermsHash(
-        primaryWallet!.address as `0x${string}`,
+        arcWallet.address as `0x${string}`,
         termsHash,
       );
       setEscrowId(foundId !== null ? foundId.toString() : null);

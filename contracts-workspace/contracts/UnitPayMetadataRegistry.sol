@@ -16,6 +16,10 @@ import "@openzeppelin/contracts/access/Ownable.sol";
  *      records; everyone can read them.
  */
 contract UnitPayMetadataRegistry is Ownable {
+    uint256 public constant MAX_ID_LENGTH = 96;
+    uint256 public constant MAX_DATA_LENGTH = 65535;
+    uint256 public constant MAX_PAGE_SIZE = 100;
+
     struct MetadataRecord {
         string id;
         string data;
@@ -38,8 +42,12 @@ contract UnitPayMetadataRegistry is Ownable {
     event MetadataDeleted(bytes32 indexed kind, string indexed id, address indexed writer);
 
     error NotWriter();
+    error EmptyKind();
     error EmptyId();
+    error IdTooLong();
     error EmptyData();
+    error DataTooLong();
+    error PageTooLarge();
     error RecordNotFound();
 
     modifier onlyWriter() {
@@ -53,8 +61,11 @@ contract UnitPayMetadataRegistry is Ownable {
     }
 
     function upsert(bytes32 kind, string calldata id, string calldata data) external onlyWriter {
+        if (kind == bytes32(0)) revert EmptyKind();
         if (bytes(id).length == 0) revert EmptyId();
+        if (bytes(id).length > MAX_ID_LENGTH) revert IdTooLong();
         if (bytes(data).length == 0) revert EmptyData();
+        if (bytes(data).length > MAX_DATA_LENGTH) revert DataTooLong();
 
         bytes32 key = _recordKey(kind, id);
         if (!idIndexedByKind[kind][id]) {
@@ -73,6 +84,9 @@ contract UnitPayMetadataRegistry is Ownable {
     }
 
     function deleteRecord(bytes32 kind, string calldata id) external onlyWriter {
+        if (kind == bytes32(0)) revert EmptyKind();
+        if (bytes(id).length == 0) revert EmptyId();
+        if (bytes(id).length > MAX_ID_LENGTH) revert IdTooLong();
         bytes32 key = _recordKey(kind, id);
         if (!records[key].exists) revert RecordNotFound();
         delete records[key];
@@ -83,11 +97,15 @@ contract UnitPayMetadataRegistry is Ownable {
         bytes32 kind,
         string calldata id
     ) external view returns (string memory data, uint64 updatedAt, bool exists) {
+        if (kind == bytes32(0)) revert EmptyKind();
+        if (bytes(id).length == 0) revert EmptyId();
+        if (bytes(id).length > MAX_ID_LENGTH) revert IdTooLong();
         MetadataRecord storage record = records[_recordKey(kind, id)];
         return (record.data, record.updatedAt, record.exists);
     }
 
     function countRecords(bytes32 kind) external view returns (uint256) {
+        if (kind == bytes32(0)) revert EmptyKind();
         return idsByKind[kind].length;
     }
 
@@ -106,6 +124,8 @@ contract UnitPayMetadataRegistry is Ownable {
             uint256 total
         )
     {
+        if (kind == bytes32(0)) revert EmptyKind();
+        if (limit > MAX_PAGE_SIZE) revert PageTooLarge();
         total = idsByKind[kind].length;
         if (offset >= total) {
             return (new string[](0), new string[](0), new uint64[](0), new bool[](0), total);

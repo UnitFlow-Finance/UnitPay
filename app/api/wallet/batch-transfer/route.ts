@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { circleClient, circleConfigured } from "@/lib/circle/client";
 import { circleErrorResponse } from "@/lib/circle/apiError";
-import { TRANSFER_ARC_TESTNET } from "@/lib/chains/config";
-import { usdcToBaseUnits } from "@/lib/units";
+import { TRANSFER_ARC_TESTNET, getChain } from "@/lib/chains/config";
+import { requireUsdcSpendableBalance, requireWalletForBlockchain } from "@/lib/circle/transactionGuards";
+import { usdcFromBaseUnits, usdcToBaseUnits } from "@/lib/units";
 
 /**
  * Step 2 of fulfilling a multi-receiver payment link: after the approve()
@@ -29,6 +30,7 @@ export async function POST(request: Request) {
 
     const addresses: string[] = [];
     const amountsBaseUnits: string[] = [];
+    let totalBaseUnits = 0n;
     for (const r of receivers) {
       if (!r?.address || !r?.amount) {
         return NextResponse.json(
@@ -37,8 +39,25 @@ export async function POST(request: Request) {
         );
       }
       addresses.push(r.address);
-      amountsBaseUnits.push(usdcToBaseUnits(r.amount).toString());
+      const amountBaseUnits = usdcToBaseUnits(r.amount);
+      totalBaseUnits += amountBaseUnits;
+      amountsBaseUnits.push(amountBaseUnits.toString());
     }
+
+    const chain = getChain("arcTestnet");
+    await requireWalletForBlockchain({
+      circleClient,
+      userToken,
+      walletId,
+      blockchain: chain.circleBlockchain,
+    });
+    await requireUsdcSpendableBalance({
+      circleClient,
+      userToken,
+      walletId,
+      chainKey: chain.key,
+      amount: usdcFromBaseUnits(totalBaseUnits),
+    });
 
     const response = await circleClient.createUserTransactionContractExecutionChallenge({
       userToken,

@@ -26,9 +26,10 @@
   "unitPayMerchantUpgradeTxHash": "0x814e3a76165d2e2d2e4eb219ce08489fbc1ecedb6b703b63d6b4a0ba0f7c8e07",
   "unitPayEscrowPreviousAddress": "0x366bae4c172c63e17430445fb5a6ad53757c04b1",
   "unitPayPacketPreviousAddress": "0xd52a5e68001b1b4b4feb721b6abdf664a6793596",
-  "unitPayMetadataRegistry": "0xf943340899883Ee20C4f5adF2D489a0c5b4eE773",
+  "unitPayMetadataRegistry": "0x100012Cd3BFBd6af56dAd2E0a874001f1De5038e",
   "unitPayMetadataRegistryDeployMethod": "hardhat",
   "unitPayMetadataRegistryDeployerAddress": "0x3682652cD0995E6972CCF7245a1CAea95C2955b8",
-  "unitPayMetadataRegistryTxHash": "0xdce81845ee9414e33cb1279dd4f784427677d0248431d637ef77608b4032effa",
-  "unitPayMetadataRegistryDeployedAt": "2026-07-30T12:43:44.053Z"
+  "unitPayMetadataRegistryTxHash": "0xaa9a78f9021a80ea28125f20aa996b7544b14a980b67213596e37edc9b4d8f3e",
+  "unitPayMetadataRegistryDeployedAt": "2026-07-30T13:09:16.680Z",
+  "unitPayMetadataRegistryPreviousAddress": "0xf943340899883Ee20C4f5adF2D489a0c5b4eE773"
 }

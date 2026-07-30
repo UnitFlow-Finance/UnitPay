@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { circleClient, circleConfigured } from "@/lib/circle/client";
 import { circleErrorResponse } from "@/lib/circle/apiError";
 import { GATEWAY_TESTNET, getChain } from "@/lib/chains/config";
+import { requireWalletForBlockchain } from "@/lib/circle/transactionGuards";
 import {
   MAX_UINT256,
   addressToBytes32,
@@ -63,6 +64,13 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
+
+    await requireWalletForBlockchain({
+      circleClient,
+      userToken,
+      walletId,
+      blockchain: sourceChain.circleBlockchain,
+    });
 
     const burnIntent = {
       maxBlockHeight: MAX_UINT256,

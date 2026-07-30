@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { circleClient, circleConfigured } from "@/lib/circle/client";
 import { circleErrorResponse } from "@/lib/circle/apiError";
-import { ESCROW_ARC_TESTNET } from "@/lib/chains/config";
+import { ESCROW_ARC_TESTNET, getChain } from "@/lib/chains/config";
+import { requireUsdcSpendableBalance, requireWalletForBlockchain } from "@/lib/circle/transactionGuards";
 
 /**
  * Refunds the payer on a disputed escrow once DISPUTE_TIMEOUT has elapsed
@@ -26,6 +27,21 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
+
+    const chain = getChain("arcTestnet");
+    await requireWalletForBlockchain({
+      circleClient,
+      userToken,
+      walletId,
+      blockchain: chain.circleBlockchain,
+    });
+    await requireUsdcSpendableBalance({
+      circleClient,
+      userToken,
+      walletId,
+      chainKey: chain.key,
+      requireTransferAmount: false,
+    });
 
     const response = await circleClient.createUserTransactionContractExecutionChallenge({
       userToken,

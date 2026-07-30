@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { circleClient, circleConfigured } from "@/lib/circle/client";
 import { circleErrorResponse } from "@/lib/circle/apiError";
+import { getChain } from "@/lib/chains/config";
+import { chainKeyForBlockchain } from "@/lib/chains/lookup";
+import { requireUsdcSpendableBalance, requireWalletForBlockchain } from "@/lib/circle/transactionGuards";
 
 const MAX_UNCONFIRMED_USDC_WARNING_THRESHOLD = 100;
 
@@ -43,6 +46,25 @@ export async function POST(request: Request) {
         `[transfer] Large transfer requested: ${amount} on ${blockchain} to ${destinationAddress}`,
       );
     }
+
+    const chainKey = chainKeyForBlockchain(String(blockchain));
+    await requireWalletForBlockchain({
+      circleClient,
+      userToken,
+      walletId,
+      blockchain: String(blockchain),
+    });
+    const isUsdcTransfer =
+      !tokenAddress ||
+      String(tokenAddress).toLowerCase() === getChain(chainKey).usdcAddress.toLowerCase();
+    await requireUsdcSpendableBalance({
+      circleClient,
+      userToken,
+      walletId,
+      chainKey,
+      amount: isUsdcTransfer ? String(amount) : undefined,
+      requireTransferAmount: isUsdcTransfer,
+    });
 
     const response = await circleClient.createTransaction({
       userToken,

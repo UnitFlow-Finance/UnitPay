@@ -41,10 +41,10 @@ function registryAddress(): Address | null {
 }
 
 function registryPrivateKey(): Hex {
-  const raw = process.env.UNITPAY_METADATA_REGISTRY_PRIVATE_KEY ?? process.env.PRIVATE_KEY;
+  const raw = process.env.UNITPAY_METADATA_REGISTRY_PRIVATE_KEY;
   if (!raw) {
     throw new Error(
-      "On-chain UnitPay storage requires UNITPAY_METADATA_REGISTRY_PRIVATE_KEY or PRIVATE_KEY.",
+      "On-chain UnitPay storage requires UNITPAY_METADATA_REGISTRY_PRIVATE_KEY configured as a secure deployment secret.",
     );
   }
   return raw.startsWith("0x") ? (raw as Hex) : (`0x${raw}` as Hex);

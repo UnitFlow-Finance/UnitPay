@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { apiPost } from "@/lib/api";
 import { useCircleSdk } from "@/lib/circle/sdkContext";
+import { preferredPrimaryWallet } from "@/lib/wallet/selectors";
 import type {
   UnitPayTokenBalance,
   UnitPayTransaction,
@@ -67,7 +68,7 @@ export function useWallet(): UseWalletResult {
         return;
       }
 
-      const primary = fetchedWallets[0];
+      const primary = preferredPrimaryWallet(fetchedWallets);
       const [balanceResults, { transactions: txs }] = await Promise.all([
         Promise.all(
           fetchedWallets.map(async (wallet) => {
@@ -92,7 +93,9 @@ export function useWallet(): UseWalletResult {
       ]);
 
       setWalletBalances(balanceResults);
-      setBalances(balanceResults.find((entry) => entry.wallet.id === primary.id)?.tokenBalances ?? []);
+      setBalances(
+        balanceResults.find((entry) => entry.wallet.id === primary?.id)?.tokenBalances ?? [],
+      );
       setTransactions(txs);
     } catch (err) {
       setError((err as Error).message ?? String(err));
@@ -117,7 +120,7 @@ export function useWallet(): UseWalletResult {
     loading,
     error,
     wallets,
-    primaryWallet: wallets[0] ?? null,
+    primaryWallet: preferredPrimaryWallet(wallets),
     balances,
     walletBalances,
     transactions,

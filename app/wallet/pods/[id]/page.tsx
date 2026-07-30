@@ -17,6 +17,7 @@ import {
 } from "@/lib/pods/types";
 import { useCircleSdk } from "@/lib/circle/sdkContext";
 import { useWallet } from "@/lib/useWallet";
+import { walletForChainKey } from "@/lib/wallet/selectors";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -26,7 +27,7 @@ type ActionStatus = "idle" | "working" | "done" | "error";
 
 export default function EscrowPodDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const { primaryWallet, loading: walletLoading } = useWallet();
+  const { primaryWallet, wallets, loading: walletLoading } = useWallet();
   const { executeChallenge } = useCircleSdk();
   const [pod, setPod] = useState<EscrowPodWithStats | null>(null);
   const [amount, setAmount] = useState("");
@@ -73,9 +74,13 @@ export default function EscrowPodDetailPage({ params }: { params: Promise<{ id: 
       if (!userToken) throw new Error("Session expired — please reload.");
 
       const chain = getChain(chainKeyForBlockchain(pod.blockchain));
+      const contributionWallet = walletForChainKey(wallets, chain.key);
+      if (!contributionWallet) {
+        throw new Error(`Create a ${chain.label} wallet before contributing to this pod.`);
+      }
       const { challengeId } = await apiPost<{ challengeId: string }>("/api/wallet/transfer", {
         userToken,
-        walletId: primaryWallet.id,
+        walletId: contributionWallet.id,
         destinationAddress: pod.treasuryAddress,
         amount,
         tokenAddress: chain.usdcIsNativeGas ? "" : chain.usdcAddress,
@@ -87,7 +92,7 @@ export default function EscrowPodDetailPage({ params }: { params: Promise<{ id: 
       await executeChallenge(challengeId);
       const updated = await addContributionRemote({
         podId: pod.id,
-        contributorAddress: primaryWallet.address,
+        contributorAddress: contributionWallet.address,
         amount,
       });
       setAmount("");

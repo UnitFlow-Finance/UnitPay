@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { circleClient, circleConfigured } from "@/lib/circle/client";
 import { circleErrorResponse } from "@/lib/circle/apiError";
 import { GATEWAY_TESTNET, getChain } from "@/lib/chains/config";
+import { requireUsdcSpendableBalance, requireWalletForBlockchain } from "@/lib/circle/transactionGuards";
 import { usdcToBaseUnits } from "@/lib/units";
 
 /**
@@ -27,6 +28,16 @@ export async function POST(request: Request) {
     }
 
     const chain = getChain(chainKey);
+    if (chain.family !== "evm") {
+      return NextResponse.json({ error: "Gateway deposits from this route require an EVM chain." }, { status: 400 });
+    }
+    await requireWalletForBlockchain({
+      circleClient,
+      userToken,
+      walletId,
+      blockchain: chain.circleBlockchain,
+    });
+    await requireUsdcSpendableBalance({ circleClient, userToken, walletId, chainKey, amount });
     const amountBaseUnits = usdcToBaseUnits(amount).toString();
 
     const response = await circleClient.createUserTransactionContractExecutionChallenge({

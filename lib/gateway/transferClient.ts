@@ -71,7 +71,13 @@ export async function sendGatewayUsdcLeg({
 
   const { challengeId: mintChallengeId } = await apiPost<{ challengeId: string }>(
     "/api/gateway/transfer/mint",
-    { userToken, walletId: destinationWalletId, attestation, signature: mintSignature },
+    {
+      userToken,
+      walletId: destinationWalletId,
+      destinationChainKey,
+      attestation,
+      signature: mintSignature,
+    },
   );
   if (!mintChallengeId) throw new Error("No mint challenge returned from server.");
   await executeChallenge(mintChallengeId);

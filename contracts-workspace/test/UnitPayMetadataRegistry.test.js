@@ -52,6 +52,25 @@ describe("UnitPayMetadataRegistry", function () {
     );
   });
 
+  it("rejects oversized ids, oversized payloads, empty kind, and oversized pages", async function () {
+    await expect(registry.upsert(ethers.ZeroHash, "pods.json", "{}")).to.be.revertedWithCustomError(
+      registry,
+      "EmptyKind",
+    );
+    await expect(registry.upsert(KIND, "a".repeat(97), "{}")).to.be.revertedWithCustomError(
+      registry,
+      "IdTooLong",
+    );
+    await expect(registry.upsert(KIND, "pods.json", "a".repeat(65536))).to.be.revertedWithCustomError(
+      registry,
+      "DataTooLong",
+    );
+    await expect(registry.listRecords(KIND, 0, 101)).to.be.revertedWithCustomError(
+      registry,
+      "PageTooLarge",
+    );
+  });
+
   it("lists records for a kind", async function () {
     await registry.upsert(KIND, "pods.json", '{"pods":[]}');
     await registry.upsert(KIND, "p2p.json", '{"offers":[]}');

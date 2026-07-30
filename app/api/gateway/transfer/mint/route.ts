@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { circleClient, circleConfigured } from "@/lib/circle/client";
 import { circleErrorResponse } from "@/lib/circle/apiError";
-import { GATEWAY_TESTNET } from "@/lib/chains/config";
+import { GATEWAY_TESTNET, getChain } from "@/lib/chains/config";
+import { requireUsdcSpendableBalance, requireWalletForBlockchain } from "@/lib/circle/transactionGuards";
 
 /**
  * Final step of a Gateway cross-chain transfer: call gatewayMint() on the
@@ -17,13 +18,28 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { userToken, walletId, attestation, signature } = await request.json();
-    if (!userToken || !walletId || !attestation || !signature) {
+    const { userToken, walletId, destinationChainKey, attestation, signature } = await request.json();
+    if (!userToken || !walletId || !destinationChainKey || !attestation || !signature) {
       return NextResponse.json(
-        { error: "Missing userToken, walletId, attestation, or signature" },
+        { error: "Missing userToken, walletId, destinationChainKey, attestation, or signature" },
         { status: 400 },
       );
     }
+
+    const chain = getChain(destinationChainKey);
+    await requireWalletForBlockchain({
+      circleClient,
+      userToken,
+      walletId,
+      blockchain: chain.circleBlockchain,
+    });
+    await requireUsdcSpendableBalance({
+      circleClient,
+      userToken,
+      walletId,
+      chainKey: chain.key,
+      requireTransferAmount: false,
+    });
 
     const response = await circleClient.createUserTransactionContractExecutionChallenge({
       userToken,

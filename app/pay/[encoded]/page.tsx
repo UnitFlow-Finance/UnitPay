@@ -22,6 +22,7 @@ import {
 } from "@/lib/paymentRequest";
 import { useGatewayBalance } from "@/lib/useGatewayBalance";
 import { useWallet } from "@/lib/useWallet";
+import { walletForChainKey } from "@/lib/wallet/selectors";
 import { Logo } from "@/components/Logo";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -112,19 +113,21 @@ export default function FulfillPaymentRequestPage({
       if (!userToken) throw new Error("Session expired — please reload.");
 
       if (isMultiReceiver) {
+        const arcWallet = walletForChainKey(wallets, "arcTestnet");
+        if (!arcWallet) throw new Error("Create an Arc Testnet wallet before paying this link.");
         // Multi-receiver: one approve() covering the total, then a single
         // batchTransfer() fans it out to every receiver atomically — see
         // UnitPayTransfer.sol and /api/wallet/batch-approve|batch-transfer.
         const { challengeId: approveChallengeId } = await apiPost<{ challengeId: string }>(
           "/api/wallet/batch-approve",
-          { userToken, walletId: primaryWallet.id, totalAmount: request.amount },
+          { userToken, walletId: arcWallet.id, totalAmount: request.amount },
         );
         if (!approveChallengeId) throw new Error("No challenge returned from server.");
         await executeChallenge(approveChallengeId);
 
         const { challengeId: transferChallengeId } = await apiPost<{ challengeId: string }>(
           "/api/wallet/batch-transfer",
-          { userToken, walletId: primaryWallet.id, receivers },
+          { userToken, walletId: arcWallet.id, receivers },
         );
         if (!transferChallengeId) throw new Error("No challenge returned from server.");
         await executeChallenge(transferChallengeId);
@@ -163,9 +166,13 @@ export default function FulfillPaymentRequestPage({
           });
         }
       } else {
+        const paymentWallet = walletForChainKey(wallets, chain.key);
+        if (!paymentWallet) {
+          throw new Error(`Create a ${chain.label} wallet before paying on this chain.`);
+        }
         const { challengeId } = await apiPost<{ challengeId: string }>("/api/wallet/transfer", {
           userToken,
-          walletId: primaryWallet.id,
+          walletId: paymentWallet.id,
           destinationAddress: request.requesterAddress,
           amount: request.amount,
           tokenAddress: chain.usdcIsNativeGas ? "" : chain.usdcAddress,
