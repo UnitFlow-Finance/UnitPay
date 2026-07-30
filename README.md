@@ -108,6 +108,15 @@ hex private key (`0x` + 64 hex characters, or 64 hex characters without the
 prefix); do not paste an assignment line such as
 `UNITPAY_METADATA_REGISTRY_PRIVATE_KEY=...`, a mnemonic, or JSON key text.
 
+Any on-chain read/write path that would otherwise use a public RPC can be
+pointed at a custom provider per chain with
+`UNITPAY_RPC_URL_<CHAIN_KEY_IN_SCREAMING_SNAKE_CASE>`, for example
+`UNITPAY_RPC_URL_ARC_TESTNET` or `UNITPAY_RPC_URL_BASE_SEPOLIA`. If an
+override is not set, UnitPay falls back to the public RPC in
+[`lib/chains/config.ts`](lib/chains/config.ts). `UNITPAY_METADATA_RPC_URL`
+is still accepted for the metadata registry, but
+`UNITPAY_RPC_URL_ARC_TESTNET` is preferred.
+
 ### Tests
 
 ```bash

@@ -5,6 +5,7 @@
 import { createPublicClient, http, parseAbi, parseAbiItem, type Address } from "viem";
 import { arcTestnet } from "viem/chains";
 import { PACKET_ARC_TESTNET } from "@/lib/chains/config";
+import { rpcUrlForChain } from "@/lib/chains/rpc";
 
 export const PACKET_ABI = parseAbi([
   "function createPacket(uint32 maxClaims, uint256 totalAmount, uint8 splitMode, uint64 expiresIn) returns (uint256 packetId)",
@@ -53,7 +54,10 @@ let cachedClient: ReturnType<typeof createPublicClient> | null = null;
 
 export function getPacketPublicClient() {
   if (!cachedClient) {
-    cachedClient = createPublicClient({ chain: arcTestnet, transport: http("https://arc-testnet.g.alchemy.com/v2/o1k50yOLGXHrczBA8KDOf") });
+    cachedClient = createPublicClient({
+      chain: arcTestnet,
+      transport: http(rpcUrlForChain("arcTestnet")),
+    });
   }
   return cachedClient;
 }

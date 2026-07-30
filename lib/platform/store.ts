@@ -13,6 +13,7 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 import { arcTestnet } from "viem/chains";
 import { METADATA_REGISTRY_ARC_TESTNET } from "@/lib/chains/config";
+import { rpcUrlForChain } from "@/lib/chains/rpc";
 import {
   normalizeRegistryPrivateKey,
   REGISTRY_SIGNER_MALFORMED_ERROR,
@@ -54,7 +55,7 @@ function shouldUseMemoryStore(): boolean {
 function getPublicClient() {
   return createPublicClient({
     chain: arcTestnet,
-    transport: http(process.env.UNITPAY_METADATA_RPC_URL ?? "https://rpc.testnet.arc.network"),
+    transport: http(process.env.UNITPAY_METADATA_RPC_URL?.trim() || rpcUrlForChain("arcTestnet")),
   });
 }
 
@@ -72,7 +73,7 @@ function getWalletClient() {
   return createWalletClient({
     account,
     chain: arcTestnet,
-    transport: http(process.env.UNITPAY_METADATA_RPC_URL ?? "https://rpc.testnet.arc.network"),
+    transport: http(process.env.UNITPAY_METADATA_RPC_URL?.trim() || rpcUrlForChain("arcTestnet")),
   });
 }
 

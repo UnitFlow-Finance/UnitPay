@@ -11,6 +11,7 @@
 import { createPublicClient, http, parseAbi, parseAbiItem, type Address } from "viem";
 import { arcTestnet } from "viem/chains";
 import { ESCROW_ARC_TESTNET } from "@/lib/chains/config";
+import { rpcUrlForChain } from "@/lib/chains/rpc";
 
 export const ESCROW_ABI = parseAbi([
   "function createEscrow(address payee, address arbiter, uint256 amount, bytes32 termsHash, uint64 expiresIn) returns (uint256 escrowId)",
@@ -59,7 +60,10 @@ let cachedClient: ReturnType<typeof createPublicClient> | null = null;
 
 export function getEscrowPublicClient() {
   if (!cachedClient) {
-    cachedClient = createPublicClient({ chain: arcTestnet, transport: http("https://arc-testnet.g.alchemy.com/v2/o1k50yOLGXHrczBA8KDOf") });
+    cachedClient = createPublicClient({
+      chain: arcTestnet,
+      transport: http(rpcUrlForChain("arcTestnet")),
+    });
   }
   return cachedClient;
 }
