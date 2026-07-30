@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { listEscrowPods, type EscrowPod } from "@/lib/escrowPods";
+import { listPodsRemote } from "@/lib/pods/client";
+import type { EscrowPodWithStats } from "@/lib/pods/types";
 import { useWallet } from "@/lib/useWallet";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
@@ -10,10 +11,17 @@ import { LinkButton } from "@/components/ui/Button";
 
 export default function EscrowPodsPage() {
   const { primaryWallet, loading } = useWallet();
-  const [pods, setPods] = useState<EscrowPod[]>([]);
+  const [pods, setPods] = useState<EscrowPodWithStats[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    queueMicrotask(() => setPods(listEscrowPods()));
+    (async () => {
+      try {
+        setPods(await listPodsRemote());
+      } catch (err) {
+        setLoadError((err as Error).message ?? String(err));
+      }
+    })();
   }, []);
 
   if (loading) {
@@ -35,6 +43,8 @@ export default function EscrowPodsPage() {
   return (
     <main className="px-4 sm:px-6 py-6 sm:py-8 max-w-md md:max-w-2xl mx-auto w-full space-y-6">
       <PageHeader title="Escrow Pods" backHref="/wallet" />
+
+      {loadError && <p className="text-error text-sm">{loadError}</p>}
 
       <div className="grid grid-cols-2 gap-3">
         <LinkButton href="/wallet/pods/new" size="lg" fullWidth>
@@ -62,6 +72,7 @@ export default function EscrowPodsPage() {
                 <p className="text-xs text-subtle">
                   {pod.visibility === "public" ? "Public" : "Private"}
                   {pod.targetAmount ? ` · Target ${pod.targetAmount} USDC` : " · No target"}
+                  {pod.paymentLink ? " · Payment link" : ""}
                 </p>
               </Card>
             </Link>

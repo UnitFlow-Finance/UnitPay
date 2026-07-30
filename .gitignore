@@ -38,6 +38,9 @@ yarn-error.log*
 recovery_file*.dat
 circle-recovery-file*.dat
 
+# local demo persistence
+.unitpay-data/
+
 # vercel
 .vercel
 

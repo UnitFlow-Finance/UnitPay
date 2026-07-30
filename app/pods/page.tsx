@@ -2,16 +2,24 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { listPublicEscrowPods, type EscrowPod } from "@/lib/escrowPods";
+import { listPodsRemote } from "@/lib/pods/client";
+import type { EscrowPodWithStats } from "@/lib/pods/types";
 import { Logo } from "@/components/Logo";
 import { Card } from "@/components/ui/Card";
 import { LinkButton } from "@/components/ui/Button";
 
 export default function PublicPodsPage() {
-  const [pods, setPods] = useState<EscrowPod[]>([]);
+  const [pods, setPods] = useState<EscrowPodWithStats[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    queueMicrotask(() => setPods(listPublicEscrowPods()));
+    (async () => {
+      try {
+        setPods(await listPodsRemote("public"));
+      } catch (err) {
+        setLoadError((err as Error).message ?? String(err));
+      }
+    })();
   }, []);
 
   return (
@@ -30,6 +38,8 @@ export default function PublicPodsPage() {
         </p>
       </div>
 
+      {loadError && <p className="text-error text-sm">{loadError}</p>}
+
       {pods.length === 0 ? (
         <Card className="text-sm text-muted text-center py-8">
           No public pods have been created in this browser yet.
@@ -37,7 +47,7 @@ export default function PublicPodsPage() {
       ) : (
         <div className="space-y-3">
           {pods.map((pod) => (
-            <Link key={pod.id} href={`/wallet/pods/${pod.id}`}>
+            <Link key={pod.id} href={`/pods/${pod.id}`}>
               <Card className="space-y-1 hover:border-primary/40 transition-colors">
                 <div className="flex items-center justify-between gap-3">
                   <p className="font-medium truncate">{pod.title}</p>
@@ -46,6 +56,7 @@ export default function PublicPodsPage() {
                 <p className="text-xs text-muted line-clamp-2">{pod.description}</p>
                 <p className="text-xs text-subtle">
                   {pod.targetAmount ? `Target ${pod.targetAmount} USDC` : "Flexible target"}
+                  {pod.paymentLink ? " · Payment link" : ""}
                 </p>
               </Card>
             </Link>

@@ -2,7 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { createEscrowPod, type EscrowPodVisibility } from "@/lib/escrowPods";
+import { createPodRemote } from "@/lib/pods/client";
+import type { EscrowPodVisibility } from "@/lib/pods/types";
 import { useWallet } from "@/lib/useWallet";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
@@ -35,7 +36,7 @@ export default function NewEscrowPodPage() {
     );
   }
 
-  function handleCreate() {
+  async function handleCreate() {
     if (!primaryWallet) return;
 
     setError(null);
@@ -52,20 +53,24 @@ export default function NewEscrowPodPage() {
       return;
     }
 
-    const pod = createEscrowPod({
-      title: title.trim(),
-      description: description.trim(),
-      targetAmount: targetAmount.trim() || undefined,
-      creatorAddress: primaryWallet.address,
-      treasuryAddress: primaryWallet.address,
-      blockchain: primaryWallet.blockchain,
-      visibility,
-      whitelist: whitelist
-        .split(/[\s,]+/)
-        .map((entry) => entry.trim())
-        .filter(Boolean),
-    });
-    router.push(`/wallet/pods/${pod.id}`);
+    try {
+      const pod = await createPodRemote({
+        title: title.trim(),
+        description: description.trim(),
+        targetAmount: targetAmount.trim() || undefined,
+        creatorAddress: primaryWallet.address,
+        treasuryAddress: primaryWallet.address,
+        blockchain: primaryWallet.blockchain,
+        visibility,
+        whitelist: whitelist
+          .split(/[\s,]+/)
+          .map((entry) => entry.trim())
+          .filter(Boolean),
+      });
+      router.push(`/wallet/pods/${pod.id}`);
+    } catch (err) {
+      setError((err as Error).message ?? String(err));
+    }
   }
 
   return (

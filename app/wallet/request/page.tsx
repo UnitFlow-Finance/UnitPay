@@ -11,11 +11,13 @@ import {
   type PaymentReceiver,
   type RecentPaymentRequest,
 } from "@/lib/paymentRequest";
+import { createPodRemote } from "@/lib/pods/client";
+import type { PodCompletionMode } from "@/lib/pods/types";
 import { useWallet } from "@/lib/useWallet";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { Field, Input } from "@/components/ui/Input";
+import { Field, Input, Select } from "@/components/ui/Input";
 
 type Mode = "single" | "split";
 
@@ -43,7 +45,12 @@ export default function RequestPaymentPage() {
     emptyReceiver(),
   ]);
   const [link, setLink] = useState<string | null>(null);
+  const [collaborativeFunding, setCollaborativeFunding] = useState(false);
+  const [completionMode, setCompletionMode] = useState<PodCompletionMode>("automatic");
+  const [collaborativePodLink, setCollaborativePodLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [copiedPodLink, setCopiedPodLink] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   // This demo has no server-side request record (see lib/paymentRequest.ts)
   // — the list below is purely a per-browser cache so a requester can find
@@ -103,57 +110,91 @@ export default function RequestPaymentPage() {
     return null;
   }
 
-  function handleGenerate() {
+  async function handleGenerate() {
     if (!primaryWallet) return;
     setFormError(null);
+    setCollaborativePodLink(null);
+    setGenerating(true);
 
-    if (mode === "split") {
-      const validationError = validateSplit();
-      if (validationError) {
-        setFormError(validationError);
+    try {
+      if (mode === "split") {
+        if (collaborativeFunding) {
+          throw new Error("Collaborative pods are currently supported for single receiver links.");
+        }
+        const validationError = validateSplit();
+        if (validationError) {
+          throw new Error(validationError);
+        }
+        const encoded = encodePaymentRequest({
+          requesterAddress: primaryWallet.address,
+          blockchain: primaryWallet.blockchain,
+          memo: memo || undefined,
+          createdAt: new Date().toISOString(),
+          receivers: receivers.map((r) => ({
+            address: r.address.trim(),
+            amount: r.amount,
+            label: r.label?.trim() || undefined,
+          })),
+        });
+        const splitLink = `${window.location.origin}/pay/${encoded}`;
+        setLink(splitLink);
+        saveRecentPaymentRequest({
+          link: splitLink,
+          amount: total.toString(),
+          memo: memo || undefined,
+          receiverCount: receivers.length,
+          createdAt: new Date().toISOString(),
+        });
+        setRecent(listRecentPaymentRequests());
         return;
       }
+
       const encoded = encodePaymentRequest({
         requesterAddress: primaryWallet.address,
         blockchain: primaryWallet.blockchain,
+        amount,
         memo: memo || undefined,
         createdAt: new Date().toISOString(),
-        receivers: receivers.map((r) => ({
-          address: r.address.trim(),
-          amount: r.amount,
-          label: r.label?.trim() || undefined,
-        })),
       });
-      const splitLink = `${window.location.origin}/pay/${encoded}`;
-      setLink(splitLink);
+      const singleLink = `${window.location.origin}/pay/${encoded}`;
+      if (collaborativeFunding) {
+        const pod = await createPodRemote({
+          title: memo || `Payment request for ${amount} USDC`,
+          description:
+            memo ||
+            "Collaborative funding pod attached to a UnitPay payment request.",
+          creatorAddress: primaryWallet.address,
+          treasuryAddress: primaryWallet.address,
+          blockchain: primaryWallet.blockchain,
+          visibility: "public",
+          whitelist: [],
+          targetAmount: amount,
+          paymentLink: {
+            encoded,
+            urlPath: `/pay/${encoded}`,
+            amount,
+            memo: memo || undefined,
+            recipientAddress: primaryWallet.address,
+            blockchain: primaryWallet.blockchain,
+            completionMode,
+          },
+        });
+        setCollaborativePodLink(`${window.location.origin}/pods/${pod.id}`);
+      }
+      setLink(singleLink);
       saveRecentPaymentRequest({
-        link: splitLink,
-        amount: total.toString(),
+        link: singleLink,
+        amount,
         memo: memo || undefined,
-        receiverCount: receivers.length,
+        receiverCount: 1,
         createdAt: new Date().toISOString(),
       });
       setRecent(listRecentPaymentRequests());
-      return;
+    } catch (err) {
+      setFormError((err as Error).message ?? String(err));
+    } finally {
+      setGenerating(false);
     }
-
-    const encoded = encodePaymentRequest({
-      requesterAddress: primaryWallet.address,
-      blockchain: primaryWallet.blockchain,
-      amount,
-      memo: memo || undefined,
-      createdAt: new Date().toISOString(),
-    });
-    const singleLink = `${window.location.origin}/pay/${encoded}`;
-    setLink(singleLink);
-    saveRecentPaymentRequest({
-      link: singleLink,
-      amount,
-      memo: memo || undefined,
-      receiverCount: 1,
-      createdAt: new Date().toISOString(),
-    });
-    setRecent(listRecentPaymentRequests());
   }
 
   async function copyLink() {
@@ -163,8 +204,16 @@ export default function RequestPaymentPage() {
     setTimeout(() => setCopied(false), 1500);
   }
 
+  async function copyPodLink() {
+    if (!collaborativePodLink) return;
+    await navigator.clipboard.writeText(collaborativePodLink);
+    setCopiedPodLink(true);
+    setTimeout(() => setCopiedPodLink(false), 1500);
+  }
+
   function reset() {
     setLink(null);
+    setCollaborativePodLink(null);
     setFormError(null);
   }
 
@@ -306,15 +355,54 @@ export default function RequestPaymentPage() {
             />
           </Field>
 
+          <Card className="space-y-3">
+            <label className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                checked={collaborativeFunding}
+                onChange={(e) => setCollaborativeFunding(e.target.checked)}
+                disabled={mode === "split"}
+                className="mt-1"
+              />
+              <span className="space-y-1">
+                <span className="block text-sm font-medium">
+                  Enable collaborative funding
+                </span>
+                <span className="block text-xs text-muted">
+                  Create a public Pod attached to this payment link so multiple
+                  contributors can fund it together.
+                </span>
+              </span>
+            </label>
+            {collaborativeFunding && mode === "single" && (
+              <Field label="Completion behavior">
+                <Select
+                  value={completionMode}
+                  onChange={(e) => setCompletionMode(e.target.value as PodCompletionMode)}
+                >
+                  <option value="automatic">Complete when target is reached</option>
+                  <option value="creator_approval">Require creator approval</option>
+                </Select>
+              </Field>
+            )}
+            {mode === "split" && (
+              <p className="text-xs text-muted">
+                Collaborative pods are available for single receiver links.
+              </p>
+            )}
+          </Card>
+
           {formError && <p className="text-error text-sm">{formError}</p>}
 
           <Button
             onClick={handleGenerate}
-            disabled={mode === "single" ? !amount || Number(amount) <= 0 : total <= 0}
+            disabled={
+              generating || (mode === "single" ? !amount || Number(amount) <= 0 : total <= 0)
+            }
             size="lg"
             fullWidth
           >
-            Generate request link
+            {generating ? "Generating..." : "Generate request link"}
           </Button>
         </div>
       )}
@@ -342,6 +430,15 @@ export default function RequestPaymentPage() {
           <Button onClick={copyLink} fullWidth>
             {copied ? "Copied!" : "Copy link"}
           </Button>
+          {collaborativePodLink && (
+            <div className="w-full rounded-xl border border-border bg-surface px-3 py-3 space-y-2">
+              <p className="text-xs text-muted">Collaborative Pod link</p>
+              <p className="text-xs font-mono break-all">{collaborativePodLink}</p>
+              <Button onClick={copyPodLink} variant="secondary" fullWidth>
+                {copiedPodLink ? "Copied!" : "Copy Pod link"}
+              </Button>
+            </div>
+          )}
           <Button onClick={reset} variant="secondary" fullWidth>
             Create another request
           </Button>

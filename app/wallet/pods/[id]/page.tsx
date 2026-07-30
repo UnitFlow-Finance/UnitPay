@@ -6,13 +6,15 @@ import { apiPost } from "@/lib/api";
 import { getChain } from "@/lib/chains/config";
 import { chainKeyForBlockchain } from "@/lib/chains/lookup";
 import {
-  addEscrowPodContribution,
-  canAccessEscrowPod,
-  getEscrowPodWithStats,
-  updateEscrowPodStatus,
+  addContributionRemote,
+  getPodRemote,
+  updatePodStatusRemote,
+} from "@/lib/pods/client";
+import {
+  normalizeAddress,
   type EscrowPodStatus,
   type EscrowPodWithStats,
-} from "@/lib/escrowPods";
+} from "@/lib/pods/types";
 import { useCircleSdk } from "@/lib/circle/sdkContext";
 import { useWallet } from "@/lib/useWallet";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -31,13 +33,20 @@ export default function EscrowPodDetailPage({ params }: { params: Promise<{ id: 
   const [status, setStatus] = useState<ActionStatus>("idle");
   const [message, setMessage] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  function refreshPod() {
-    setPod(getEscrowPodWithStats(id));
+  async function refreshPod() {
+    try {
+      setLoadError(null);
+      setPod(await getPodRemote(id));
+    } catch (err) {
+      setLoadError((err as Error).message ?? String(err));
+    }
   }
 
   useEffect(() => {
-    queueMicrotask(refreshPod);
+    const timeout = window.setTimeout(() => void refreshPod(), 0);
+    return () => window.clearTimeout(timeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
@@ -72,7 +81,7 @@ export default function EscrowPodDetailPage({ params }: { params: Promise<{ id: 
 
       setMessage("Approve the pod contribution with your PIN...");
       await executeChallenge(challengeId);
-      addEscrowPodContribution({
+      const updated = await addContributionRemote({
         podId: pod.id,
         contributorAddress: primaryWallet.address,
         amount,
@@ -80,29 +89,33 @@ export default function EscrowPodDetailPage({ params }: { params: Promise<{ id: 
       setAmount("");
       setStatus("done");
       setMessage("Contribution recorded.");
-      refreshPod();
+      setPod(updated);
     } catch (err) {
       setStatus("error");
       setMessage((err as Error).message ?? String(err));
     }
   }
 
-  function handleStatusChange(nextStatus: EscrowPodStatus) {
-    updateEscrowPodStatus(id, nextStatus);
-    refreshPod();
+  async function handleStatusChange(nextStatus: EscrowPodStatus) {
+    setPod(await updatePodStatusRemote(id, nextStatus));
   }
 
   if (!pod) {
     return (
       <main className="min-h-full flex items-center justify-center px-6">
-        <p className="text-error text-sm text-center">Pod not found.</p>
+        <p className="text-error text-sm text-center">{loadError ?? "Pod not found."}</p>
       </main>
     );
   }
 
   const isCreator =
     primaryWallet?.address.toLowerCase() === pod.creatorAddress.toLowerCase();
-  const canAccess = canAccessEscrowPod(pod, primaryWallet?.address);
+  const canAccess =
+    pod.visibility === "public" ||
+    pod.whitelist.length === 0 ||
+    Boolean(
+      primaryWallet?.address && pod.whitelist.includes(normalizeAddress(primaryWallet.address)),
+    );
   const isClosed = pod.status === "Closed";
 
   return (
@@ -145,6 +158,20 @@ export default function EscrowPodDetailPage({ params }: { params: Promise<{ id: 
                 <div className="h-full bg-primary" style={{ width: `${pod.progress}%` }} />
               </div>
             )}
+            {pod.remainingAmount !== null && (
+              <div className="flex justify-between text-sm">
+                <span className="text-muted">Remaining</span>
+                <span className="font-medium">{pod.remainingAmount.toFixed(2)} USDC</span>
+              </div>
+            )}
+            {pod.paymentLink && (
+              <div className="space-y-1.5">
+                <p className="text-xs text-muted">Attached payment link</p>
+                <Link href={pod.paymentLink.urlPath} className="text-sm text-accent underline">
+                  Open original payment request
+                </Link>
+              </div>
+            )}
             <div className="space-y-1.5">
               <p className="text-xs text-muted">Pod treasury</p>
               <code className="block text-xs break-all bg-background rounded-lg px-2.5 py-2">
@@ -165,6 +192,7 @@ export default function EscrowPodDetailPage({ params }: { params: Promise<{ id: 
                   onChange={(e) => handleStatusChange(e.target.value as EscrowPodStatus)}
                 >
                   <option value="Open">Open</option>
+                  <option value="Pending approval">Pending approval</option>
                   <option value="Completed">Completed</option>
                   <option value="Closed">Closed</option>
                 </Select>
@@ -223,6 +251,20 @@ export default function EscrowPodDetailPage({ params }: { params: Promise<{ id: 
               ))
             )}
           </Card>
+
+          {pod.activity.length > 0 && (
+            <Card className="space-y-3">
+              <p className="text-xs text-muted uppercase tracking-wide">Activity</p>
+              {pod.activity.map((event) => (
+                <div key={event.id} className="text-sm">
+                  <p>{event.message}</p>
+                  <p className="text-xs text-muted">
+                    {new Date(event.createdAt).toLocaleString()}
+                  </p>
+                </div>
+              ))}
+            </Card>
+          )}
         </>
       )}
     </main>
