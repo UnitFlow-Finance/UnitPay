@@ -125,7 +125,7 @@ export default function WalletDashboardPage() {
   }
 
   return (
-    <main className="px-4 sm:px-6 lg:px-8 py-6 sm:py-8 max-w-md md:max-w-3xl lg:max-w-5xl mx-auto w-full space-y-6 sm:space-y-8">
+    <main className="px-3 min-[380px]:px-4 sm:px-6 lg:px-8 py-4 sm:py-8 max-w-none md:max-w-3xl lg:max-w-5xl mx-auto w-full space-y-4 sm:space-y-8">
       <header className="hidden md:flex items-center justify-between">
         <h1 className="text-xl font-semibold">Wallet</h1>
         <Link
@@ -136,25 +136,25 @@ export default function WalletDashboardPage() {
         </Link>
       </header>
 
-      <div className="grid md:grid-cols-5 gap-6 sm:gap-8">
-        <div className="md:col-span-3 space-y-6 sm:space-y-8">
+      <div className="grid md:grid-cols-5 gap-4 sm:gap-8">
+        <div className="md:col-span-3 space-y-4 sm:space-y-8 min-w-0">
           <Link href="/wallet/unified">
-            <Card className="space-y-3 hover:border-primary/40 transition-colors">
+            <Card className="space-y-3 hover:border-primary/40 transition-colors p-4 sm:p-5">
               <div className="flex items-center justify-between gap-3">
-                <div>
+                <div className="min-w-0">
                   <p className="text-xs text-muted uppercase tracking-wide">Gateway balance</p>
-                  <p className="text-2xl font-semibold">
+                  <p className="text-[1.75rem] leading-tight sm:text-2xl font-semibold break-words">
                     {gateway.loading ? "..." : gateway.total} USDC
                   </p>
                 </div>
-                <Globe2 className="w-6 h-6 text-primary" />
+                <Globe2 className="w-6 h-6 text-primary shrink-0" />
               </div>
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div>
+              <div className="grid grid-cols-1 min-[380px]:grid-cols-2 gap-3 text-sm">
+                <div className="min-w-0">
                   <p className="text-xs text-muted">Unified Gateway</p>
                   <p className="font-medium">Cross-chain USDC</p>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <p className="text-xs text-muted">Personal wallet</p>
                   <p className="font-medium">{personalUsdcTotal.toFixed(2)} USDC</p>
                 </div>
@@ -162,26 +162,26 @@ export default function WalletDashboardPage() {
             </Card>
           </Link>
 
-          <Card className="space-y-4">
-            <div className="flex items-center justify-between gap-3">
-              <div>
+          <Card className="space-y-4 p-4 sm:p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
                 <p className="text-xs text-muted uppercase tracking-wide">Wallet balances</p>
-                <h2 className="text-lg font-semibold">All chains and tokens</h2>
+                <h2 className="text-base sm:text-lg font-semibold">All chains and tokens</h2>
               </div>
               <button
                 onClick={() => refresh()}
-                className="flex items-center gap-1 text-xs text-accent hover:text-primary transition-colors"
+                className="shrink-0 flex items-center gap-1 text-xs text-accent hover:text-primary transition-colors"
               >
                 <RefreshCw className="w-3.5 h-3.5" /> Refresh
               </button>
             </div>
 
             {Object.keys(totalsBySymbol).length > 0 && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
                 {Object.entries(totalsBySymbol).map(([symbol, total]) => (
-                  <div key={symbol} className="rounded-xl border border-border bg-background px-3 py-2">
+                  <div key={symbol} className="min-w-0 rounded-xl border border-border bg-background px-3 py-2">
                     <p className="text-xs text-muted">{symbol}</p>
-                    <p className="font-medium">{total.toFixed(6).replace(/\.?0+$/, "")}</p>
+                    <p className="font-medium truncate">{total.toFixed(6).replace(/\.?0+$/, "")}</p>
                   </div>
                 ))}
               </div>
@@ -193,15 +193,15 @@ export default function WalletDashboardPage() {
                 const usdc = primaryUsdcBalance(group.tokenBalances);
                 return (
                   <Link key={group.wallet.id} href={`/wallet/chains/${group.wallet.id}`}>
-                    <div className="rounded-xl border border-border px-3 py-3 hover:border-primary/40 transition-colors">
-                      <div className="flex items-center justify-between gap-3">
+                    <div className="rounded-xl border border-border px-3 py-3 hover:border-primary/40 transition-colors min-w-0">
+                      <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="font-medium">{walletChainLabel(group)}</p>
                           <p className="text-xs text-muted font-mono truncate">
                             {group.wallet.id}
                           </p>
                         </div>
-                        <span className="text-sm font-semibold">
+                        <span className="text-sm font-semibold shrink-0 max-w-[42%] truncate text-right">
                           {usdc?.amount ?? "0"} USDC
                         </span>
                       </div>
@@ -222,19 +222,19 @@ export default function WalletDashboardPage() {
             </div>
           </Card>
 
-          <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 min-[420px]:grid-cols-3 sm:grid-cols-4 gap-2.5 sm:gap-3">
             {actionTiles.map(({ href, label, icon: Icon, primary }) => (
               <Link
                 key={href}
                 href={href}
-                className={`flex flex-col items-center justify-center gap-1.5 rounded-2xl py-3.5 sm:py-4 text-xs sm:text-sm font-medium text-center transition-colors ${
+                className={`min-h-[74px] flex flex-col items-center justify-center gap-1.5 rounded-2xl px-2 py-3 sm:py-4 text-xs sm:text-sm font-medium text-center transition-colors ${
                   primary
                     ? "bg-primary hover:bg-primary-dark text-white"
                     : "bg-surface border border-border hover:border-primary/40 text-foreground"
                 }`}
               >
                 <Icon className="w-5 h-5" />
-                {label}
+                <span className="leading-tight">{label}</span>
               </Link>
             ))}
           </div>
@@ -251,13 +251,13 @@ export default function WalletDashboardPage() {
                 <RefreshCw className="w-3.5 h-3.5" /> Refresh
               </button>
             </div>
-            <Card padded={false} className="divide-y divide-border px-4 sm:px-5">
+            <Card padded={false} className="divide-y divide-border px-3 sm:px-5 overflow-hidden">
               <TransactionHistory transactions={transactions} />
             </Card>
           </section>
         </div>
 
-        <div className="md:col-span-2 space-y-4">
+        <div className="md:col-span-2 space-y-4 min-w-0">
           <Card className="space-y-3">
             <p className="font-medium">Add another chain</p>
             <p className="text-xs text-muted">

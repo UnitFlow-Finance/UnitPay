@@ -22,24 +22,24 @@ export function TransactionHistory({ transactions }: { transactions: UnitPayTran
         <li key={tx.id}>
           <Link
             href={`/wallet/transactions/${tx.id}`}
-            className="py-3 flex items-center justify-between gap-3 text-sm hover:text-primary transition-colors"
+            className="py-3 flex items-center justify-between gap-3 text-sm hover:text-primary transition-colors min-w-0"
           >
-          <div className="min-w-0">
-            <p className="font-medium truncate">
-              {tx.transactionType ?? "Transfer"} · {chainLabelForBlockchain(tx.blockchain)}
-            </p>
-            <p className="text-muted text-xs truncate">
-              {tx.destinationAddress
-                ? `To ${tx.destinationAddress.slice(0, 6)}…${tx.destinationAddress.slice(-4)}`
-                : tx.sourceAddress
-                  ? `From ${tx.sourceAddress.slice(0, 6)}…${tx.sourceAddress.slice(-4)}`
-                  : ""}
-            </p>
-          </div>
-          <div className="text-right shrink-0">
-            <p className="font-medium">{tx.amounts?.[0] ?? "-"} USDC</p>
-            <p className={`text-xs ${STATE_STYLES[tx.state] ?? "text-muted"}`}>{tx.state}</p>
-          </div>
+            <div className="min-w-0">
+              <p className="font-medium truncate">
+                {tx.transactionType ?? "Transfer"} · {chainLabelForBlockchain(tx.blockchain)}
+              </p>
+              <p className="text-muted text-xs truncate">
+                {tx.destinationAddress
+                  ? `To ${tx.destinationAddress.slice(0, 6)}…${tx.destinationAddress.slice(-4)}`
+                  : tx.sourceAddress
+                    ? `From ${tx.sourceAddress.slice(0, 6)}…${tx.sourceAddress.slice(-4)}`
+                    : ""}
+              </p>
+            </div>
+            <div className="text-right shrink-0 max-w-[38%]">
+              <p className="font-medium truncate">{tx.amounts?.[0] ?? "-"} USDC</p>
+              <p className={`text-xs ${STATE_STYLES[tx.state] ?? "text-muted"}`}>{tx.state}</p>
+            </div>
           </Link>
         </li>
       ))}

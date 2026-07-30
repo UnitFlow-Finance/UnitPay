@@ -72,23 +72,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </Link>
         </header>
 
-        <div className="flex-1 pb-20 md:pb-0">{children}</div>
+        <div className="flex-1 pb-24 md:pb-0 min-w-0">{children}</div>
 
         {/* Mobile bottom tab bar */}
         <nav className="md:hidden fixed bottom-0 inset-x-0 z-10 pb-safe border-t border-border bg-background/95 backdrop-blur">
-          <div className="grid grid-cols-7">
+          <div className="flex overflow-x-auto px-2 py-1 gap-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
             {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
               const active = isActive(pathname, href);
               return (
                 <Link
                   key={href}
                   href={href}
-                  className={`flex flex-col items-center gap-1 py-2.5 text-[11px] font-medium transition-colors ${
-                    active ? "text-primary" : "text-muted"
+                  className={`min-w-[68px] flex flex-col items-center gap-1 rounded-xl px-2 py-2 text-[10px] font-medium transition-colors ${
+                    active ? "bg-primary-light text-primary" : "text-muted"
                   }`}
                 >
-                  <Icon className="w-5 h-5" />
-                  {label}
+                  <Icon className="w-[18px] h-[18px]" />
+                  <span className="max-w-full truncate">{label}</span>
                 </Link>
               );
             })}
