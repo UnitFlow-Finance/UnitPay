@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   Send,
   QrCode,
@@ -20,18 +20,31 @@ import {
   Bot,
   Globe2,
 } from "lucide-react";
-import { BalanceCard } from "@/components/BalanceCard";
 import { TransactionHistory } from "@/components/TransactionHistory";
 import { Card, DashedCard } from "@/components/ui/Card";
-import { chainLabelForBlockchain, isUsdcNativeGas } from "@/lib/chains/lookup";
+import { Button } from "@/components/ui/Button";
+import { Field, Select } from "@/components/ui/Input";
+import { apiPost } from "@/lib/api";
+import { DEFAULT_SELECTOR_CHAINS, getChain } from "@/lib/chains/config";
+import { useCircleSdk } from "@/lib/circle/sdkContext";
 import { useGatewayBalance } from "@/lib/useGatewayBalance";
 import { useWallet } from "@/lib/useWallet";
+import {
+  groupTotalBySymbol,
+  primaryUsdcBalance,
+  tokenSymbol,
+  walletChainLabel,
+} from "@/lib/wallet/balances";
 
 export default function WalletDashboardPage() {
   const router = useRouter();
-  const { loading, error, wallets, primaryWallet, balances, transactions, refresh } =
+  const { executeChallenge } = useCircleSdk();
+  const { loading, error, wallets, primaryWallet, walletBalances, transactions, userToken, refresh } =
     useWallet();
   const gateway = useGatewayBalance(primaryWallet);
+  const [chainToCreate, setChainToCreate] = useState<string>(DEFAULT_SELECTOR_CHAINS[1]);
+  const [createStatus, setCreateStatus] = useState<"idle" | "working" | "done" | "error">("idle");
+  const [createMessage, setCreateMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && wallets.length === 0 && !error) {
@@ -85,12 +98,31 @@ export default function WalletDashboardPage() {
     { href: "/wallet/arbitrators", label: "AI Rules", icon: Bot },
     { href: "/qr", label: "QR", icon: QrCode },
   ];
-  const personalUsdcTotal = balances.reduce(
-    (sum, balance) =>
-      balance.token.symbol === "USDC" ? sum + (Number(balance.amount) || 0) : sum,
-    0,
-  );
+  const totalsBySymbol = groupTotalBySymbol(walletBalances);
+  const personalUsdcTotal = totalsBySymbol.USDC ?? 0;
   const combinedTotal = personalUsdcTotal + (Number(gateway.total) || 0);
+  const existingBlockchains = new Set(wallets.map((wallet) => wallet.blockchain));
+  const createChain = getChain(chainToCreate);
+
+  async function handleCreateChainWallet() {
+    if (!userToken) return;
+    setCreateStatus("working");
+    setCreateMessage(`Creating ${createChain.label} wallet...`);
+    try {
+      const { challengeId } = await apiPost<{ challengeId: string }>("/api/wallet/create", {
+        userToken,
+        blockchain: createChain.circleBlockchain,
+      });
+      if (!challengeId) throw new Error("No wallet creation challenge returned.");
+      await executeChallenge(challengeId);
+      await refresh();
+      setCreateStatus("done");
+      setCreateMessage(`${createChain.label} wallet created.`);
+    } catch (err) {
+      setCreateStatus("error");
+      setCreateMessage((err as Error).message ?? String(err));
+    }
+  }
 
   return (
     <main className="px-4 sm:px-6 lg:px-8 py-6 sm:py-8 max-w-md md:max-w-3xl lg:max-w-5xl mx-auto w-full space-y-6 sm:space-y-8">
@@ -106,12 +138,6 @@ export default function WalletDashboardPage() {
 
       <div className="grid md:grid-cols-5 gap-6 sm:gap-8">
         <div className="md:col-span-3 space-y-6 sm:space-y-8">
-          <BalanceCard
-            chainLabel={chainLabelForBlockchain(primaryWallet.blockchain)}
-            balances={balances}
-            usdcIsNativeGas={isUsdcNativeGas(primaryWallet.blockchain)}
-          />
-
           <Link href="/wallet/unified">
             <Card className="space-y-3 hover:border-primary/40 transition-colors">
               <div className="flex items-center justify-between gap-3">
@@ -133,6 +159,65 @@ export default function WalletDashboardPage() {
               </div>
             </Card>
           </Link>
+
+          <Card className="space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs text-muted uppercase tracking-wide">Wallet balances</p>
+                <h2 className="text-lg font-semibold">All chains and tokens</h2>
+              </div>
+              <button
+                onClick={() => refresh()}
+                className="flex items-center gap-1 text-xs text-accent hover:text-primary transition-colors"
+              >
+                <RefreshCw className="w-3.5 h-3.5" /> Refresh
+              </button>
+            </div>
+
+            {Object.keys(totalsBySymbol).length > 0 && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {Object.entries(totalsBySymbol).map(([symbol, total]) => (
+                  <div key={symbol} className="rounded-xl border border-border bg-background px-3 py-2">
+                    <p className="text-xs text-muted">{symbol}</p>
+                    <p className="font-medium">{total.toFixed(6).replace(/\.?0+$/, "")}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="space-y-2">
+              {walletBalances.map((group) => {
+                const usdc = primaryUsdcBalance(group.tokenBalances);
+                return (
+                  <Link key={group.wallet.id} href={`/wallet/chains/${group.wallet.id}`}>
+                    <div className="rounded-xl border border-border px-3 py-3 hover:border-primary/40 transition-colors">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="font-medium">{walletChainLabel(group)}</p>
+                          <p className="text-xs text-muted font-mono truncate">
+                            {group.wallet.id}
+                          </p>
+                        </div>
+                        <span className="text-sm font-semibold">
+                          {usdc?.amount ?? "0"} USDC
+                        </span>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {group.tokenBalances.slice(0, 5).map((balance) => (
+                          <span
+                            key={`${group.wallet.id}-${balance.token.id ?? balance.token.tokenAddress ?? tokenSymbol(balance)}`}
+                            className="rounded-lg bg-surface px-2 py-1 text-[11px] text-muted"
+                          >
+                            {balance.amount} {tokenSymbol(balance)}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </Card>
 
           <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
             {actionTiles.map(({ href, label, icon: Icon, primary }) => (
@@ -170,6 +255,41 @@ export default function WalletDashboardPage() {
         </div>
 
         <div className="md:col-span-2 space-y-4">
+          <Card className="space-y-3">
+            <p className="font-medium">Add another chain</p>
+            <p className="text-xs text-muted">
+              Create a Circle wallet on another supported testnet so balances and transactions
+              appear on the dashboard.
+            </p>
+            <Field label="Chain">
+              <Select value={chainToCreate} onChange={(event) => setChainToCreate(event.target.value)}>
+                {DEFAULT_SELECTOR_CHAINS.map((key) => {
+                  const chain = getChain(key);
+                  const exists = existingBlockchains.has(chain.circleBlockchain);
+                  return (
+                    <option key={key} value={key}>
+                      {chain.label}{exists ? " (enabled)" : ""}
+                    </option>
+                  );
+                })}
+              </Select>
+            </Field>
+            <Button
+              onClick={handleCreateChainWallet}
+              disabled={
+                createStatus === "working" || existingBlockchains.has(createChain.circleBlockchain)
+              }
+              fullWidth
+            >
+              {createStatus === "working" ? "Creating..." : "Enable chain wallet"}
+            </Button>
+            {createMessage && (
+              <p className={`text-xs ${createStatus === "error" ? "text-error" : "text-muted"}`}>
+                {createMessage}
+              </p>
+            )}
+          </Card>
+
           <DashedCard>
             <p className="font-medium text-foreground mb-1">Unified balance (Gateway)</p>
             <p>

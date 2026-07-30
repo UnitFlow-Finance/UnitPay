@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { UnitPayTransaction } from "@/lib/types";
 import { chainLabelForBlockchain } from "@/lib/chains/lookup";
 
@@ -18,10 +19,11 @@ export function TransactionHistory({ transactions }: { transactions: UnitPayTran
   return (
     <ul className="divide-y divide-border">
       {transactions.map((tx) => (
-        <li
-          key={tx.id}
-          className="py-3 flex items-center justify-between gap-3 text-sm"
-        >
+        <li key={tx.id}>
+          <Link
+            href={`/wallet/transactions/${tx.id}`}
+            className="py-3 flex items-center justify-between gap-3 text-sm hover:text-primary transition-colors"
+          >
           <div className="min-w-0">
             <p className="font-medium truncate">
               {tx.transactionType ?? "Transfer"} · {chainLabelForBlockchain(tx.blockchain)}
@@ -38,6 +40,7 @@ export function TransactionHistory({ transactions }: { transactions: UnitPayTran
             <p className="font-medium">{tx.amounts?.[0] ?? "-"} USDC</p>
             <p className={`text-xs ${STATE_STYLES[tx.state] ?? "text-muted"}`}>{tx.state}</p>
           </div>
+          </Link>
         </li>
       ))}
     </ul>

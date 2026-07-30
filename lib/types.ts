@@ -33,3 +33,8 @@ export interface UnitPayTransaction {
   createDate?: string;
   transactionType?: string;
 }
+
+export interface UnitPayWalletBalanceGroup {
+  wallet: UnitPayWallet;
+  tokenBalances: UnitPayTokenBalance[];
+}

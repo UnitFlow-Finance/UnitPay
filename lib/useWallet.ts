@@ -3,7 +3,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { apiPost } from "@/lib/api";
 import { useCircleSdk } from "@/lib/circle/sdkContext";
-import type { UnitPayTokenBalance, UnitPayTransaction, UnitPayWallet } from "@/lib/types";
+import type {
+  UnitPayTokenBalance,
+  UnitPayTransaction,
+  UnitPayWallet,
+  UnitPayWalletBalanceGroup,
+} from "@/lib/types";
 
 interface UseWalletResult {
   loading: boolean;
@@ -11,6 +16,7 @@ interface UseWalletResult {
   wallets: UnitPayWallet[];
   primaryWallet: UnitPayWallet | null;
   balances: UnitPayTokenBalance[];
+  walletBalances: UnitPayWalletBalanceGroup[];
   transactions: UnitPayTransaction[];
   userToken: string | null;
   refresh: () => Promise<void>;
@@ -27,6 +33,7 @@ export function useWallet(): UseWalletResult {
   const [error, setError] = useState<string | null>(null);
   const [wallets, setWallets] = useState<UnitPayWallet[]>([]);
   const [balances, setBalances] = useState<UnitPayTokenBalance[]>([]);
+  const [walletBalances, setWalletBalances] = useState<UnitPayWalletBalanceGroup[]>([]);
   const [transactions, setTransactions] = useState<UnitPayTransaction[]>([]);
   const [userToken, setUserToken] = useState<string | null>(cachedToken);
 
@@ -39,6 +46,7 @@ export function useWallet(): UseWalletResult {
         setUserToken(null);
         setWallets([]);
         setBalances([]);
+        setWalletBalances([]);
         setTransactions([]);
         return;
       }
@@ -54,23 +62,37 @@ export function useWallet(): UseWalletResult {
 
       if (fetchedWallets.length === 0) {
         setBalances([]);
+        setWalletBalances([]);
         setTransactions([]);
         return;
       }
 
       const primary = fetchedWallets[0];
-      const [{ tokenBalances }, { transactions: txs }] = await Promise.all([
-        apiPost<{ tokenBalances: UnitPayTokenBalance[] }>("/api/wallet/balances", {
-          userToken: token,
-          walletId: primary.id,
-        }),
+      const [balanceResults, { transactions: txs }] = await Promise.all([
+        Promise.all(
+          fetchedWallets.map(async (wallet) => {
+            try {
+              const { tokenBalances } = await apiPost<{ tokenBalances: UnitPayTokenBalance[] }>(
+                "/api/wallet/balances",
+                {
+                  userToken: token,
+                  walletId: wallet.id,
+                },
+              );
+              return { wallet, tokenBalances };
+            } catch {
+              return { wallet, tokenBalances: [] };
+            }
+          }),
+        ),
         apiPost<{ transactions: UnitPayTransaction[] }>("/api/wallet/transactions", {
           userToken: token,
           walletIds: fetchedWallets.map((w) => w.id),
         }),
       ]);
 
-      setBalances(tokenBalances);
+      setWalletBalances(balanceResults);
+      setBalances(balanceResults.find((entry) => entry.wallet.id === primary.id)?.tokenBalances ?? []);
       setTransactions(txs);
     } catch (err) {
       setError((err as Error).message ?? String(err));
@@ -97,6 +119,7 @@ export function useWallet(): UseWalletResult {
     wallets,
     primaryWallet: wallets[0] ?? null,
     balances,
+    walletBalances,
     transactions,
     userToken,
     refresh: load,

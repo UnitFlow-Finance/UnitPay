@@ -4,14 +4,18 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { apiPost } from "@/lib/api";
-import { getChain } from "@/lib/chains/config";
-import { chainKeyForBlockchain } from "@/lib/chains/lookup";
 import { useCircleSdk } from "@/lib/circle/sdkContext";
 import { useWallet } from "@/lib/useWallet";
+import {
+  tokenAmount,
+  tokenSymbol,
+  uniqueTokenKey,
+  walletChainLabel,
+} from "@/lib/wallet/balances";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { Field, Input } from "@/components/ui/Input";
+import { Field, Input, Select } from "@/components/ui/Input";
 
 type Step = "form" | "confirm" | "working" | "done" | "error";
 
@@ -24,9 +28,11 @@ type Step = "form" | "confirm" | "working" | "done" | "error";
  */
 export default function SendPage() {
   const router = useRouter();
-  const { primaryWallet, balances, refresh } = useWallet();
+  const { primaryWallet, wallets, walletBalances, refresh } = useWallet();
   const { executeChallenge } = useCircleSdk();
 
+  const [selectedWalletId, setSelectedWalletId] = useState("");
+  const [selectedTokenKey, setSelectedTokenKey] = useState("");
   const [destination, setDestination] = useState("");
   const [amount, setAmount] = useState("");
   const [step, setStep] = useState<Step>("form");
@@ -40,6 +46,34 @@ export default function SendPage() {
     return () => window.clearTimeout(timeout);
   }, []);
 
+  useEffect(() => {
+    if (!selectedWalletId && walletBalances.length > 0) {
+      const timeout = window.setTimeout(
+        () => setSelectedWalletId(walletBalances[0].wallet.id),
+        0,
+      );
+      return () => window.clearTimeout(timeout);
+    }
+  }, [selectedWalletId, walletBalances]);
+
+  const selectedGroup =
+    walletBalances.find((group) => group.wallet.id === selectedWalletId) ?? walletBalances[0];
+  const selectedBalances = selectedGroup?.tokenBalances ?? [];
+  const selectedToken =
+    selectedBalances.find((balance) => uniqueTokenKey(balance) === selectedTokenKey) ??
+    selectedBalances.find((balance) => tokenSymbol(balance) === "USDC") ??
+    selectedBalances[0];
+
+  useEffect(() => {
+    if (selectedToken && uniqueTokenKey(selectedToken) !== selectedTokenKey) {
+      const timeout = window.setTimeout(
+        () => setSelectedTokenKey(uniqueTokenKey(selectedToken)),
+        0,
+      );
+      return () => window.clearTimeout(timeout);
+    }
+  }, [selectedToken, selectedTokenKey]);
+
   if (!primaryWallet) {
     return (
       <main className="min-h-full flex items-center justify-center px-6">
@@ -48,25 +82,31 @@ export default function SendPage() {
     );
   }
 
-  const wallet = primaryWallet;
-  const chainKey = chainKeyForBlockchain(primaryWallet.blockchain);
-  const chain = getChain(chainKey);
-  const usdcBalance =
-    balances.find((b) => b.token.symbol === "USDC" || b.token.isNative === chain.usdcIsNativeGas)
-      ?.amount ?? "0";
+  if (!selectedGroup) {
+    return (
+      <main className="min-h-full flex items-center justify-center px-6">
+        <p className="text-muted text-sm">Loading chain balances...</p>
+      </main>
+    );
+  }
+
+  const wallet = selectedGroup?.wallet ?? primaryWallet;
+  const selectedSymbol = selectedToken ? tokenSymbol(selectedToken) : "TOKEN";
+  const availableAmount = selectedToken ? tokenAmount(selectedToken) : 0;
 
   function validateForm(): string | null {
     if (!destination.trim()) return "Enter a destination.";
     if (
-      destination.trim() !== wallet.id &&
-      chain.family === "evm" &&
+      !wallets.some((entry) => entry.id === destination.trim()) &&
+      wallet.blockchain !== "SOL-DEVNET" &&
       !/^0x[a-fA-F0-9]{40}$/.test(destination.trim())
     ) {
-      return "Enter a raw EVM address or a Circle Wallet ID known to this device.";
+      return "Enter a raw EVM address or a Circle Wallet ID known to this account.";
     }
     const amt = Number(amount);
     if (!amount || Number.isNaN(amt) || amt <= 0) return "Enter a valid amount.";
-    if (amt > Number(usdcBalance)) return "Amount exceeds your available balance.";
+    if (!selectedToken) return "Select a token balance to send.";
+    if (amt > availableAmount) return "Amount exceeds your available balance.";
     return null;
   }
 
@@ -89,12 +129,12 @@ export default function SendPage() {
 
       const { challengeId } = await apiPost<{ challengeId: string }>("/api/wallet/transfer", {
         userToken,
-        walletId: primaryWallet!.id,
+        walletId: wallet.id,
         destinationAddress:
-          destination.trim() === wallet.id ? wallet.address : destination.trim(),
+          wallets.find((entry) => entry.id === destination.trim())?.address ?? destination.trim(),
         amount,
-        tokenAddress: chain.usdcIsNativeGas ? "" : chain.usdcAddress,
-        blockchain: primaryWallet!.blockchain,
+        tokenAddress: selectedToken?.token.isNative ? "" : selectedToken?.token.tokenAddress,
+        blockchain: wallet.blockchain,
       });
 
       if (!challengeId) throw new Error("No challenge returned from server.");
@@ -110,16 +150,46 @@ export default function SendPage() {
 
   return (
     <main className="px-4 sm:px-6 py-6 sm:py-8 max-w-md md:max-w-lg mx-auto w-full space-y-6">
-      <PageHeader title="Send USDC" backHref="/wallet" />
+      <PageHeader title="Send Tokens" backHref="/wallet" />
 
       {step === "form" && (
         <div className="space-y-4">
           <Card className="text-sm text-muted">
-            Sending on <span className="text-foreground font-medium">{chain.label}</span>.
-            Available: {usdcBalance} USDC.
+            Sending from{" "}
+            <span className="text-foreground font-medium">{walletChainLabel(selectedGroup)}</span>.
+            Available: {availableAmount} {selectedSymbol}.
           </Card>
 
-          <Field label="Destination address">
+          <Field label="Send from chain">
+            <Select
+              value={wallet.id}
+              onChange={(e) => {
+                setSelectedWalletId(e.target.value);
+                setSelectedTokenKey("");
+              }}
+            >
+              {walletBalances.map((group) => (
+                <option key={group.wallet.id} value={group.wallet.id}>
+                  {walletChainLabel(group)}
+                </option>
+              ))}
+            </Select>
+          </Field>
+
+          <Field label="Token">
+            <Select
+              value={selectedToken ? uniqueTokenKey(selectedToken) : ""}
+              onChange={(e) => setSelectedTokenKey(e.target.value)}
+            >
+              {selectedBalances.map((balance) => (
+                <option key={uniqueTokenKey(balance)} value={uniqueTokenKey(balance)}>
+                  {balance.amount} {tokenSymbol(balance)}
+                </option>
+              ))}
+            </Select>
+          </Field>
+
+          <Field label="Destination">
             <Input
               value={destination}
               onChange={(e) => setDestination(e.target.value)}
@@ -128,7 +198,7 @@ export default function SendPage() {
             />
           </Field>
 
-          <Field label="Amount (USDC)">
+          <Field label={`Amount (${selectedSymbol})`}>
             <Input
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
@@ -144,8 +214,7 @@ export default function SendPage() {
           </Button>
 
           <p className="text-xs text-muted">
-            Sending to a different chain, or to an address that isn&apos;t on{" "}
-            {chain.label}? Use{" "}
+            Sending to a different destination chain through Gateway? Use{" "}
             <Link href="/wallet/unified" className="text-accent underline">
               cross-chain send
             </Link>{" "}
@@ -157,13 +226,14 @@ export default function SendPage() {
       {step === "confirm" && (
         <div className="space-y-4">
           <Card className="space-y-3">
-            <ConfirmRow label="Network" value={chain.label} />
+            <ConfirmRow label="Network" value={walletChainLabel(selectedGroup)} />
+            <ConfirmRow label="Token" value={selectedSymbol} />
             <ConfirmRow
               label="To"
               value={`${destination.slice(0, 10)}…${destination.slice(-6)}`}
               mono
             />
-            <ConfirmRow label="Amount" value={`${amount} USDC`} />
+            <ConfirmRow label="Amount" value={`${amount} ${selectedSymbol}`} />
           </Card>
           <p className="text-xs text-warning">
             Double-check the destination address and network — on-chain transfers cannot be
@@ -190,8 +260,8 @@ export default function SendPage() {
         <div className="space-y-4 text-center py-6">
           <p className="text-success font-medium">Transfer submitted</p>
           <p className="text-muted text-sm">
-            {amount} USDC sent to {destination.slice(0, 10)}…{destination.slice(-6)} on{" "}
-            {chain.label}.
+            {amount} {selectedSymbol} sent to {destination.slice(0, 10)}…{destination.slice(-6)} on{" "}
+            {walletChainLabel(selectedGroup)}.
           </p>
           <Button onClick={() => router.push("/wallet")} size="lg" fullWidth>
             Back to wallet
