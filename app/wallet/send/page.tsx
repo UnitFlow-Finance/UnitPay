@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { apiPost } from "@/lib/api";
 import { getChain } from "@/lib/chains/config";
 import { chainKeyForBlockchain } from "@/lib/chains/lookup";
@@ -32,6 +32,14 @@ export default function SendPage() {
   const [step, setStep] = useState<Step>("form");
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      const recipient = new URLSearchParams(window.location.search).get("recipient");
+      if (recipient) setDestination(recipient);
+    }, 0);
+    return () => window.clearTimeout(timeout);
+  }, []);
+
   if (!primaryWallet) {
     return (
       <main className="min-h-full flex items-center justify-center px-6">
@@ -40,6 +48,7 @@ export default function SendPage() {
     );
   }
 
+  const wallet = primaryWallet;
   const chainKey = chainKeyForBlockchain(primaryWallet.blockchain);
   const chain = getChain(chainKey);
   const usdcBalance =
@@ -47,9 +56,13 @@ export default function SendPage() {
       ?.amount ?? "0";
 
   function validateForm(): string | null {
-    if (!destination.trim()) return "Enter a destination address.";
-    if (chain.family === "evm" && !/^0x[a-fA-F0-9]{40}$/.test(destination.trim())) {
-      return "That doesn't look like a valid EVM address.";
+    if (!destination.trim()) return "Enter a destination.";
+    if (
+      destination.trim() !== wallet.id &&
+      chain.family === "evm" &&
+      !/^0x[a-fA-F0-9]{40}$/.test(destination.trim())
+    ) {
+      return "Enter a raw EVM address or a Circle Wallet ID known to this device.";
     }
     const amt = Number(amount);
     if (!amount || Number.isNaN(amt) || amt <= 0) return "Enter a valid amount.";
@@ -77,7 +90,8 @@ export default function SendPage() {
       const { challengeId } = await apiPost<{ challengeId: string }>("/api/wallet/transfer", {
         userToken,
         walletId: primaryWallet!.id,
-        destinationAddress: destination.trim(),
+        destinationAddress:
+          destination.trim() === wallet.id ? wallet.address : destination.trim(),
         amount,
         tokenAddress: chain.usdcIsNativeGas ? "" : chain.usdcAddress,
         blockchain: primaryWallet!.blockchain,
@@ -109,7 +123,7 @@ export default function SendPage() {
             <Input
               value={destination}
               onChange={(e) => setDestination(e.target.value)}
-              placeholder="0x..."
+              placeholder="Circle Wallet ID or 0x..."
               className="font-mono"
             />
           </Field>

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Send, QrCode, Globe2, Store, Settings, Users } from "lucide-react";
+import { Home, Send, QrCode, Globe2, Store, Settings, Users, HandCoins } from "lucide-react";
 import { Logo } from "./Logo";
 
 const NAV_ITEMS = [
@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { href: "/wallet/receive", label: "Receive", icon: QrCode },
   { href: "/wallet/unified", label: "Gateway", icon: Globe2 },
   { href: "/wallet/pods", label: "Pods", icon: Users },
+  { href: "/p2p", label: "P2P", icon: HandCoins },
   { href: "/merchant", label: "Merchant", icon: Store },
 ] as const;
 
@@ -75,7 +76,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         {/* Mobile bottom tab bar */}
         <nav className="md:hidden fixed bottom-0 inset-x-0 z-10 pb-safe border-t border-border bg-background/95 backdrop-blur">
-          <div className="grid grid-cols-6">
+          <div className="grid grid-cols-7">
             {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
               const active = isActive(pathname, href);
               return (

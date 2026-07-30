@@ -15,13 +15,19 @@ export default function EscrowPodsPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    (async () => {
+    async function refresh() {
       try {
         setPods(await listPodsRemote());
       } catch (err) {
         setLoadError((err as Error).message ?? String(err));
       }
-    })();
+    }
+    const timeout = window.setTimeout(() => void refresh(), 0);
+    const interval = window.setInterval(() => void refresh(), 5000);
+    return () => {
+      window.clearTimeout(timeout);
+      window.clearInterval(interval);
+    };
   }, []);
 
   if (loading) {

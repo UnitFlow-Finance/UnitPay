@@ -46,7 +46,11 @@ export default function EscrowPodDetailPage({ params }: { params: Promise<{ id: 
 
   useEffect(() => {
     const timeout = window.setTimeout(() => void refreshPod(), 0);
-    return () => window.clearTimeout(timeout);
+    const interval = window.setInterval(() => void refreshPod(), 5000);
+    return () => {
+      window.clearTimeout(timeout);
+      window.clearInterval(interval);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 

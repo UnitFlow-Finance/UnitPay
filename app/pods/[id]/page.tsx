@@ -17,8 +17,7 @@ export default function PublicPodDetailPage({ params }: { params: Promise<{ id: 
 
   useEffect(() => {
     queueMicrotask(() => setShareUrl(window.location.href));
-    const timeout = window.setTimeout(() => {
-      void (async () => {
+    async function refresh() {
         try {
           setLoadError(null);
           const nextPod = await getPodRemote(id);
@@ -30,9 +29,13 @@ export default function PublicPodDetailPage({ params }: { params: Promise<{ id: 
         } catch (err) {
           setLoadError((err as Error).message ?? String(err));
         }
-      })();
-    }, 0);
-    return () => window.clearTimeout(timeout);
+    }
+    const timeout = window.setTimeout(() => void refresh(), 0);
+    const interval = window.setInterval(() => void refresh(), 5000);
+    return () => {
+      window.clearTimeout(timeout);
+      window.clearInterval(interval);
+    };
   }, [id]);
 
   if (!pod) {

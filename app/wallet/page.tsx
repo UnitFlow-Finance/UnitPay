@@ -14,17 +14,24 @@ import {
   ShieldCheck,
   Gift,
   Users,
+  HandCoins,
+  CreditCard,
+  Coins,
+  Bot,
+  Globe2,
 } from "lucide-react";
 import { BalanceCard } from "@/components/BalanceCard";
 import { TransactionHistory } from "@/components/TransactionHistory";
 import { Card, DashedCard } from "@/components/ui/Card";
 import { chainLabelForBlockchain, isUsdcNativeGas } from "@/lib/chains/lookup";
+import { useGatewayBalance } from "@/lib/useGatewayBalance";
 import { useWallet } from "@/lib/useWallet";
 
 export default function WalletDashboardPage() {
   const router = useRouter();
   const { loading, error, wallets, primaryWallet, balances, transactions, refresh } =
     useWallet();
+  const gateway = useGatewayBalance(primaryWallet);
 
   useEffect(() => {
     if (!loading && wallets.length === 0 && !error) {
@@ -72,7 +79,18 @@ export default function WalletDashboardPage() {
     { href: "/wallet/escrow", label: "Escrow", icon: ShieldCheck },
     { href: "/wallet/packet", label: "Unit Packet", icon: Gift },
     { href: "/wallet/pods", label: "Pods", icon: Users },
+    { href: "/p2p", label: "P2P", icon: HandCoins },
+    { href: "/wallet/cards", label: "Cards", icon: CreditCard },
+    { href: "/wallet/tokens", label: "Tokens", icon: Coins },
+    { href: "/wallet/arbitrators", label: "AI Rules", icon: Bot },
+    { href: "/qr", label: "QR", icon: QrCode },
   ];
+  const personalUsdcTotal = balances.reduce(
+    (sum, balance) =>
+      balance.token.symbol === "USDC" ? sum + (Number(balance.amount) || 0) : sum,
+    0,
+  );
+  const combinedTotal = personalUsdcTotal + (Number(gateway.total) || 0);
 
   return (
     <main className="px-4 sm:px-6 lg:px-8 py-6 sm:py-8 max-w-md md:max-w-3xl lg:max-w-5xl mx-auto w-full space-y-6 sm:space-y-8">
@@ -93,6 +111,28 @@ export default function WalletDashboardPage() {
             balances={balances}
             usdcIsNativeGas={isUsdcNativeGas(primaryWallet.blockchain)}
           />
+
+          <Link href="/wallet/unified">
+            <Card className="space-y-3 hover:border-primary/40 transition-colors">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs text-muted uppercase tracking-wide">Combined total</p>
+                  <p className="text-2xl font-semibold">{combinedTotal.toFixed(2)} USDC</p>
+                </div>
+                <Globe2 className="w-6 h-6 text-primary" />
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-xs text-muted">Gateway balance</p>
+                  <p className="font-medium">{gateway.loading ? "..." : gateway.total} USDC</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted">Personal wallet</p>
+                  <p className="font-medium">{personalUsdcTotal.toFixed(2)} USDC</p>
+                </div>
+              </div>
+            </Card>
+          </Link>
 
           <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
             {actionTiles.map(({ href, label, icon: Icon, primary }) => (
@@ -147,6 +187,25 @@ export default function WalletDashboardPage() {
               Pool funds for group purchases, donations, and shared expenses in{" "}
               <Link href="/wallet/pods" className="text-accent underline">
                 Pods
+              </Link>
+              .
+            </p>
+          </DashedCard>
+
+          <DashedCard>
+            <p className="font-medium text-foreground mb-1">P2P, Cards, and QR</p>
+            <p>
+              Trade through{" "}
+              <Link href="/p2p" className="text-accent underline">
+                P2P escrow
+              </Link>
+              , manage{" "}
+              <Link href="/wallet/cards" className="text-accent underline">
+                virtual cards
+              </Link>
+              , or open the{" "}
+              <Link href="/qr" className="text-accent underline">
+                universal QR scanner
               </Link>
               .
             </p>
