@@ -8,6 +8,8 @@ import {
   P2P_ASSETS,
   P2P_FIAT_CURRENCIES,
   P2P_PAYMENT_METHODS,
+  customerActionLabel,
+  offerSideForCustomerAction,
   type P2POffer,
   type P2POfferSide,
   type P2PTrade,
@@ -30,7 +32,7 @@ export default function P2PMarketplacePage() {
 
   const filters = useMemo(() => {
     const params = new URLSearchParams();
-    if (side !== "all") params.set("side", side);
+    if (side !== "all") params.set("side", offerSideForCustomerAction(side));
     params.set("asset", asset);
     params.set("fiatCurrency", fiatCurrency);
     return params;
@@ -78,8 +80,8 @@ export default function P2PMarketplacePage() {
           <Field label="I want to">
             <Select value={side} onChange={(event) => setSide(event.target.value as P2POfferSide | "all")}>
               <option value="all">All offers</option>
-              <option value="buy">Buy crypto</option>
-              <option value="sell">Sell crypto</option>
+              <option value="buy">Buy crypto from merchants</option>
+              <option value="sell">Sell crypto to merchants</option>
             </Select>
           </Field>
           <Field label="Asset">
@@ -100,8 +102,8 @@ export default function P2PMarketplacePage() {
             Create offer
           </LinkButton>
           <p className="text-xs text-muted">
-            Settlement uses a dedicated P2P balance model: deposit, lock for trade, release or
-            refund, then withdraw.
+            Customer buys use merchant escrowed liquidity. Customer sells lock the customer&apos;s
+            tokens into on-chain escrow before the trade starts.
           </p>
           {trades.length > 0 && (
             <div className="pt-2 border-t border-border space-y-2">
@@ -135,7 +137,7 @@ export default function P2PMarketplacePage() {
                 <Card className="space-y-2 hover:border-primary/40 transition-colors">
                   <div className="flex items-center justify-between gap-3">
                     <p className="font-medium">
-                      {offer.side === "buy" ? "Buying" : "Selling"} {offer.asset}
+                      {customerActionLabel(offer.side)} {offer.asset}
                     </p>
                     <span className="text-sm font-semibold">
                       {offer.price} {offer.fiatCurrency}

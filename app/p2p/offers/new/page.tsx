@@ -7,7 +7,7 @@ import { apiPost } from "@/lib/api";
 import { useCircleSdk } from "@/lib/circle/sdkContext";
 import { createP2POfferRemote } from "@/lib/p2p/client";
 import { findP2POfferIdByMetadataHash, p2pMetadataHash } from "@/lib/p2p/contract";
-import { P2P_ASSETS, P2P_FIAT_CURRENCIES, P2P_PAYMENT_METHODS, type P2POfferSide } from "@/lib/p2p/types";
+import { P2P_ASSETS, P2P_FIAT_CURRENCIES, P2P_PAYMENT_METHODS, merchantActionLabel, type P2POfferSide } from "@/lib/p2p/types";
 import { useWallet } from "@/lib/useWallet";
 import { walletForChainKey } from "@/lib/wallet/selectors";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -80,7 +80,7 @@ export default function NewP2POfferPage() {
       });
 
       if (side === "sell") {
-        setError("Approving P2P escrow to lock merchant liquidity...");
+        setError("Approving P2P escrow to lock the USDC you are selling to customers...");
         const { challengeId: approveChallengeId } = await apiPost<{ challengeId: string }>(
           "/api/p2p/onchain",
           {
@@ -94,7 +94,7 @@ export default function NewP2POfferPage() {
         await executeChallenge(approveChallengeId);
       }
 
-      setError("Creating on-chain P2P offer...");
+      setError(`Creating on-chain P2P offer. Merchant action: ${merchantActionLabel(side).toLowerCase()} ${asset}...`);
       const { challengeId: createChallengeId } = await apiPost<{ challengeId: string }>(
         "/api/p2p/onchain",
         {
@@ -174,10 +174,10 @@ export default function NewP2POfferPage() {
       <PageHeader title="Create P2P Offer" backHref="/p2p" />
       <Card className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Side">
+          <Field label="Merchant action">
             <Select value={side} onChange={(event) => setSide(event.target.value as P2POfferSide)}>
-              <option value="buy">Buy</option>
-              <option value="sell">Sell</option>
+              <option value="buy">Buy crypto from customers</option>
+              <option value="sell">Sell crypto to customers</option>
             </Select>
           </Field>
           <Field label="Asset">
@@ -211,6 +211,10 @@ export default function NewP2POfferPage() {
             <Input value={availableAmount} onChange={(event) => setAvailableAmount(event.target.value)} inputMode="decimal" />
           </Field>
         </div>
+        <p className="text-xs text-muted">
+          This is a merchant offer. If you sell crypto, customers see it as a Buy offer. If
+          you buy crypto, customers see it as a Sell offer.
+        </p>
         <Field label="Payment method">
           <Select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)}>
             {P2P_PAYMENT_METHODS.map((entry) => (

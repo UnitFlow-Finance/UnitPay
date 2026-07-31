@@ -158,3 +158,19 @@ export const P2P_PAYMENT_METHODS = [
   "SEPA",
   "ACH",
 ] as const;
+
+export function customerActionForOfferSide(side: P2POfferSide): P2POfferSide {
+  return side === "sell" ? "buy" : "sell";
+}
+
+export function customerActionLabel(side: P2POfferSide): "Buy" | "Sell" {
+  return customerActionForOfferSide(side) === "buy" ? "Buy" : "Sell";
+}
+
+export function merchantActionLabel(side: P2POfferSide): "Buying" | "Selling" {
+  return side === "buy" ? "Buying" : "Selling";
+}
+
+export function offerSideForCustomerAction(action: P2POfferSide): P2POfferSide {
+  return action === "buy" ? "sell" : "buy";
+}

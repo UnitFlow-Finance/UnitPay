@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { getP2POffer } from "@/lib/p2p/store";
+import { customerActionLabel } from "@/lib/p2p/types";
 import { absoluteUrl } from "@/lib/platform/objects";
 
 export async function generateMetadata({
@@ -10,7 +11,7 @@ export async function generateMetadata({
   const { id } = await params;
   const offer = await getP2POffer(id);
   const title = offer
-    ? `${offer.side === "buy" ? "Buy" : "Sell"} ${offer.asset} on UnitPay P2P`
+    ? `${customerActionLabel(offer.side)} ${offer.asset} on UnitPay P2P`
     : "UnitPay P2P Offer";
   const description = offer
     ? `${offer.price} ${offer.fiatCurrency} · ${offer.paymentMethods.join(", ")}`

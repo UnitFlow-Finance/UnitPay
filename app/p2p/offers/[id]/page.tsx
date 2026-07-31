@@ -7,8 +7,8 @@ import { QRCodeSVG } from "qrcode.react";
 import { apiPost } from "@/lib/api";
 import { useCircleSdk } from "@/lib/circle/sdkContext";
 import { createP2PTradeRemote, getP2POfferRemote } from "@/lib/p2p/client";
-import { findP2PTradeId } from "@/lib/p2p/contract";
-import type { P2POffer, P2PTrade } from "@/lib/p2p/types";
+import { waitForP2PTradeId } from "@/lib/p2p/contract";
+import { customerActionLabel, merchantActionLabel, type P2POffer, type P2PTrade } from "@/lib/p2p/types";
 import { encodeUnitPayQr } from "@/lib/platform/qr";
 import { usdcToBaseUnits } from "@/lib/units";
 import { useWallet } from "@/lib/useWallet";
@@ -74,10 +74,10 @@ export default function P2POfferDetailPage({ params }: { params: Promise<{ id: s
       );
       await executeChallenge(startChallengeId);
 
-      setMessage("Confirming on-chain trade...");
+      setMessage("Confirming on-chain trade. This can take up to a minute after wallet approval...");
       const buyer = offer.side === "sell" ? arcWallet.address : offer.creatorWalletId;
       const seller = offer.side === "sell" ? offer.creatorWalletId : arcWallet.address;
-      const onChainTradeId = await findP2PTradeId({
+      const onChainTradeId = await waitForP2PTradeId({
         chainKey: offer.chainKey ?? "arcTestnet",
         offerId: BigInt(offer.onChainOfferId),
         buyer: buyer as `0x${string}`,
@@ -85,7 +85,7 @@ export default function P2POfferDetailPage({ params }: { params: Promise<{ id: s
         amountBaseUnits: usdcToBaseUnits(amount),
       });
       if (onChainTradeId === null) {
-        throw new Error("Trade was submitted, but UnitPay could not find the on-chain trade event yet. Refresh and try again.");
+        throw new Error("Trade was submitted, but UnitPay could not find the on-chain trade event yet. Wait for the transaction to confirm, then refresh and try opening this offer again.");
       }
 
       const trade = await createP2PTradeRemote({
@@ -120,7 +120,7 @@ export default function P2POfferDetailPage({ params }: { params: Promise<{ id: s
 
   return (
     <main className="px-4 sm:px-6 py-6 sm:py-8 max-w-md md:max-w-2xl mx-auto w-full space-y-6">
-      <PageHeader title={`${offer.side === "buy" ? "Buy" : "Sell"} ${offer.asset}`} backHref="/p2p" />
+      <PageHeader title={`${customerActionLabel(offer.side)} ${offer.asset}`} backHref="/p2p" />
       <Card className="space-y-4">
         <div className="flex justify-between gap-3">
           <div>
@@ -134,6 +134,7 @@ export default function P2POfferDetailPage({ params }: { params: Promise<{ id: s
         <div className="grid grid-cols-2 gap-3 text-sm">
           <Info label="Available" value={`${offer.availableAmount} ${offer.asset}`} />
           <Info label="Limit" value={`${offer.minAmount}-${offer.maxAmount} ${offer.asset}`} />
+          <Info label="Merchant is" value={`${merchantActionLabel(offer.side)} ${offer.asset}`} />
           <Info label="Payment" value={offer.paymentMethods.join(", ")} />
           <Info label="Status" value={offer.status} />
           <Info label="Deadline" value={`${offer.paymentTimeLimitMinutes ?? 15} min`} />
@@ -159,7 +160,7 @@ export default function P2POfferDetailPage({ params }: { params: Promise<{ id: s
           </Select>
         </Field>
         <Button onClick={startTrade} disabled={!primaryWallet || !amount} fullWidth>
-          Lock trade
+          {customerActionLabel(offer.side)} {offer.asset}
         </Button>
         {message && <p className="text-xs text-muted">{message}</p>}
       </Card>

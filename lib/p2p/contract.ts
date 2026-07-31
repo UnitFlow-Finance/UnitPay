@@ -139,3 +139,21 @@ export async function findP2PTradeId({
   }
   return null;
 }
+
+export async function waitForP2PTradeId(
+  input: Parameters<typeof findP2PTradeId>[0] & {
+    attempts?: number;
+    intervalMs?: number;
+  },
+): Promise<bigint | null> {
+  const attempts = input.attempts ?? 20;
+  const intervalMs = input.intervalMs ?? 3_000;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const match = await findP2PTradeId(input);
+    if (match !== null) return match;
+    if (attempt < attempts - 1) {
+      await new Promise((resolve) => window.setTimeout(resolve, intervalMs));
+    }
+  }
+  return null;
+}

@@ -10,7 +10,7 @@ import {
   upsertP2PMerchantRemote,
   updateP2POfferRemote,
 } from "@/lib/p2p/client";
-import { P2P_PAYMENT_METHODS, type P2PMerchantProfile, type P2POffer } from "@/lib/p2p/types";
+import { P2P_PAYMENT_METHODS, merchantActionLabel, type P2PMerchantProfile, type P2POffer } from "@/lib/p2p/types";
 import { useWallet } from "@/lib/useWallet";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
@@ -118,7 +118,7 @@ export default function P2PMerchantDashboardPage() {
               <Card key={offer.id} className="space-y-3">
                 <div className="flex items-center justify-between gap-3">
                   <Link href={`/p2p/offers/${offer.id}`} className="font-medium">
-                    {offer.side === "buy" ? "Buying" : "Selling"} {offer.asset}
+                    {merchantActionLabel(offer.side)} {offer.asset}
                   </Link>
                   <span className="text-xs text-muted">{offer.status}</span>
                 </div>

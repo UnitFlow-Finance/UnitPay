@@ -3,7 +3,7 @@
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { ShieldCheck, Star } from "lucide-react";
-import type { P2PMerchantProfile, P2POffer } from "@/lib/p2p/types";
+import { customerActionLabel, type P2PMerchantProfile, type P2POffer } from "@/lib/p2p/types";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
 
@@ -64,7 +64,7 @@ export default function P2PMerchantProfilePage({ params }: { params: Promise<{ i
             <Link key={offer.id} href={`/p2p/offers/${offer.id}`}>
               <Card className="hover:border-primary/40 transition-colors">
                 <div className="flex items-center justify-between gap-3">
-                  <p className="font-medium">{offer.side === "buy" ? "Buying" : "Selling"} {offer.asset}</p>
+                  <p className="font-medium">{customerActionLabel(offer.side)} {offer.asset}</p>
                   <p className="font-semibold">{offer.price} {offer.fiatCurrency}</p>
                 </div>
               </Card>
