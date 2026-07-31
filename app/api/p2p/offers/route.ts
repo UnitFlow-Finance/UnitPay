@@ -31,6 +31,12 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
+    if (Number(body.availableAmount) < Number(body.minAmount)) {
+      return NextResponse.json(
+        { error: "availableAmount must be at least minAmount" },
+        { status: 400 },
+      );
+    }
     const offer = await createP2POffer({
       merchantId: body.merchantId ? String(body.merchantId) : undefined,
       creatorWalletId: String(body.creatorWalletId),

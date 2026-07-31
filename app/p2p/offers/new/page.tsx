@@ -55,6 +55,14 @@ export default function NewP2POfferPage() {
       setError("Minimum amount cannot exceed maximum amount.");
       return;
     }
+    if (Number(availableAmount) < Number(minAmount)) {
+      setError(
+        side === "buy"
+          ? "Total buy capacity must be at least the minimum trade amount."
+          : "Escrow liquidity must be at least the minimum trade amount.",
+      );
+      return;
+    }
     if (asset !== "USDC") {
       setError("On-chain P2P escrow is currently live for USDC on Arc Testnet. Other assets need token deployments before they can custody real funds.");
       return;
@@ -209,7 +217,7 @@ export default function NewP2POfferPage() {
           <Field label="Max">
             <Input value={maxAmount} onChange={(event) => setMaxAmount(event.target.value)} inputMode="decimal" />
           </Field>
-          <Field label="Available">
+          <Field label={side === "buy" ? "Total buy capacity" : "Escrow liquidity"}>
             <Input value={availableAmount} onChange={(event) => setAvailableAmount(event.target.value)} inputMode="decimal" />
           </Field>
         </div>
@@ -219,8 +227,9 @@ export default function NewP2POfferPage() {
         </p>
         {side === "buy" && (
           <p className="text-xs text-muted">
-            Buy offers are fiat-first: you do not escrow crypto now. The customer locks
-            their USDC on-chain when they accept your offer.
+            Buy offers are fiat-first: total buy capacity is the maximum USDC you are
+            willing to buy from customers. You do not escrow crypto now; the customer
+            locks their USDC on-chain when they accept your offer.
           </p>
         )}
         <Field label="Payment method">

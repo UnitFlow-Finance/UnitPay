@@ -74,6 +74,26 @@ export async function POST(request: Request) {
     if (action === "create-offer") {
       const side = body.side === "buy" ? "buy" : "sell";
       const amount = String(body.availableAmount || "");
+      const minBaseUnits = usdcToBaseUnits(String(body.minAmount || ""));
+      const maxBaseUnits = usdcToBaseUnits(String(body.maxAmount || ""));
+      const availableBaseUnits = usdcToBaseUnits(amount);
+      if (minBaseUnits <= 0n || maxBaseUnits <= 0n || availableBaseUnits <= 0n) {
+        return NextResponse.json({ error: "Enter valid positive offer amounts." }, { status: 400 });
+      }
+      if (minBaseUnits > maxBaseUnits) {
+        return NextResponse.json({ error: "Minimum amount cannot exceed maximum amount." }, { status: 400 });
+      }
+      if (availableBaseUnits < minBaseUnits) {
+        return NextResponse.json(
+          {
+            error:
+              side === "buy"
+                ? "Total buy capacity must be at least the minimum trade amount."
+                : "Escrow liquidity must be at least the minimum trade amount.",
+          },
+          { status: 400 },
+        );
+      }
       if (side === "sell") {
         await requireUsdcSpendableBalance({ circleClient, userToken, walletId, chainKey: chain.key, amount });
       } else {
@@ -89,9 +109,9 @@ export async function POST(request: Request) {
         chain.usdcAddress,
         String(P2P_OFFER_SIDE_ONCHAIN[side]),
         String(body.priceBaseUnits || usdcToBaseUnits(String(body.price || "0")).toString()),
-        usdcToBaseUnits(String(body.minAmount || "")).toString(),
-        usdcToBaseUnits(String(body.maxAmount || "")).toString(),
-        usdcToBaseUnits(amount).toString(),
+        minBaseUnits.toString(),
+        maxBaseUnits.toString(),
+        availableBaseUnits.toString(),
         String(Number(body.paymentWindowSeconds || 900)),
         String(body.metadataHash || ""),
       ]);
