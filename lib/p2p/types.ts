@@ -54,6 +54,7 @@ export interface P2POffer {
   availableAmount: string;
   totalLiquidity?: string;
   paymentMethods: string[];
+  paymentDetails?: P2PPaymentDetail[];
   paymentTimeLimitMinutes?: number;
   terms: string;
   instructions?: string;
@@ -61,6 +62,19 @@ export interface P2POffer {
   status: "Active" | "Paused" | "Filled" | "Cancelled";
   createdAt: string;
   updatedAt: string;
+}
+
+export interface P2PPaymentDetail {
+  id: string;
+  method: string;
+  label: string;
+  recipientName?: string;
+  accountIdentifier?: string;
+  institutionName?: string;
+  referenceNote?: string;
+  instructions?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface P2PTradeEvidence {
@@ -79,6 +93,15 @@ export interface P2PTradeActivity {
   createdAt: string;
 }
 
+export interface P2PEncryptedTradeMessage {
+  id: string;
+  senderCircleWalletId: string;
+  encryptedPayload: string;
+  iv: string;
+  algorithm: "AES-GCM";
+  createdAt: string;
+}
+
 export interface P2PTrade {
   id: string;
   offerId: string;
@@ -94,12 +117,14 @@ export interface P2PTrade {
   status: P2PTradeStatus;
   escrowMode: "automatic" | "ai_arbitrated" | "manual";
   paymentMethod: string;
+  paymentDetails?: P2PPaymentDetail;
   paymentDeadlineAt: string;
   proofOfPayment?: string;
   disputeReason?: string;
   resolutionNote?: string;
   evidence?: P2PTradeEvidence[];
   activity?: P2PTradeActivity[];
+  chatMessages?: P2PEncryptedTradeMessage[];
   createdAt: string;
   updatedAt: string;
 }

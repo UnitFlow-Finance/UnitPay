@@ -27,6 +27,12 @@ export default function NewP2POfferPage() {
   const [maxAmount, setMaxAmount] = useState("500");
   const [availableAmount, setAvailableAmount] = useState("500");
   const [paymentMethod, setPaymentMethod] = useState("Bank Transfer");
+  const [paymentDetailLabel, setPaymentDetailLabel] = useState("Primary payment account");
+  const [paymentRecipientName, setPaymentRecipientName] = useState("");
+  const [paymentAccountIdentifier, setPaymentAccountIdentifier] = useState("");
+  const [paymentInstitutionName, setPaymentInstitutionName] = useState("");
+  const [paymentReferenceNote, setPaymentReferenceNote] = useState("");
+  const [paymentDetailInstructions, setPaymentDetailInstructions] = useState("");
   const [timeLimit, setTimeLimit] = useState("15");
   const [instructions, setInstructions] = useState("Send fiat payment using the selected method, then upload proof before the deadline.");
   const [kycRequired, setKycRequired] = useState(false);
@@ -70,6 +76,18 @@ export default function NewP2POfferPage() {
     setStatus("working");
     try {
       if (!arcWallet) throw new Error("Create an Arc Testnet wallet before creating an on-chain P2P offer.");
+      const paymentDetails = [
+        {
+          id: crypto.randomUUID(),
+          method: paymentMethod,
+          label: paymentDetailLabel,
+          recipientName: paymentRecipientName,
+          accountIdentifier: paymentAccountIdentifier,
+          institutionName: paymentInstitutionName,
+          referenceNote: paymentReferenceNote,
+          instructions: paymentDetailInstructions,
+        },
+      ];
       const userToken = window.localStorage.getItem("unitpay.userToken");
       if (!userToken) throw new Error("Session expired — please reload.");
       const metadataHash = p2pMetadataHash({
@@ -82,6 +100,7 @@ export default function NewP2POfferPage() {
         maxAmount,
         availableAmount,
         paymentMethod,
+        paymentDetails,
         timeLimit,
         terms,
         instructions,
@@ -146,6 +165,7 @@ export default function NewP2POfferPage() {
         maxAmount,
         availableAmount,
         paymentMethods: [paymentMethod],
+        paymentDetails,
         paymentTimeLimitMinutes: Number(timeLimit),
         instructions,
         kycRequired,
@@ -239,6 +259,31 @@ export default function NewP2POfferPage() {
             ))}
           </Select>
         </Field>
+        <div className="space-y-3 rounded-xl border border-border p-3">
+          <p className="text-sm font-medium">Payment details customers will see</p>
+          <Field label="Display label">
+            <Input value={paymentDetailLabel} onChange={(event) => setPaymentDetailLabel(event.target.value)} placeholder="Primary bank account" />
+          </Field>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <Field label={recipientLabel(paymentMethod)}>
+              <Input value={paymentRecipientName} onChange={(event) => setPaymentRecipientName(event.target.value)} placeholder="Recipient name" />
+            </Field>
+            <Field label={identifierLabel(paymentMethod)}>
+              <Input value={paymentAccountIdentifier} onChange={(event) => setPaymentAccountIdentifier(event.target.value)} placeholder="Account, phone, email, or handle" />
+            </Field>
+          </div>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <Field label={institutionLabel(paymentMethod)}>
+              <Input value={paymentInstitutionName} onChange={(event) => setPaymentInstitutionName(event.target.value)} placeholder="Bank, provider, network" />
+            </Field>
+            <Field label="Payment reference">
+              <Input value={paymentReferenceNote} onChange={(event) => setPaymentReferenceNote(event.target.value)} placeholder="Reference customers should include" />
+            </Field>
+          </div>
+          <Field label="Method-specific instructions">
+            <Textarea value={paymentDetailInstructions} onChange={(event) => setPaymentDetailInstructions(event.target.value)} rows={2} placeholder="Any extra steps for this payment method" />
+          </Field>
+        </div>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Payment deadline (minutes)">
             <Input value={timeLimit} onChange={(event) => setTimeLimit(event.target.value)} inputMode="numeric" />
@@ -261,4 +306,25 @@ export default function NewP2POfferPage() {
       </Card>
     </main>
   );
+}
+
+function recipientLabel(method: string): string {
+  if (method === "Cash") return "Contact person";
+  return "Recipient/account name";
+}
+
+function identifierLabel(method: string): string {
+  if (method === "Mobile Money") return "Mobile money number";
+  if (method === "Digital Wallet") return "Wallet email or handle";
+  if (method === "Cash") return "Pickup or meeting detail";
+  if (method === "UPI") return "UPI ID";
+  return "Account number or identifier";
+}
+
+function institutionLabel(method: string): string {
+  if (method === "Mobile Money") return "Network/provider";
+  if (method === "Digital Wallet") return "Wallet provider";
+  if (method === "Cash") return "City/area";
+  if (method === "SEPA" || method === "ACH") return "Bank name";
+  return "Institution/provider";
 }

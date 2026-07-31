@@ -69,7 +69,7 @@ export default function P2PMerchantDashboardPage() {
     offer: P2POffer,
     overrides: Partial<Pick<
       P2POffer,
-      "availableAmount" | "maxAmount" | "minAmount" | "price" | "paymentMethods" | "terms" | "instructions" | "status"
+      "availableAmount" | "maxAmount" | "minAmount" | "price" | "paymentMethods" | "paymentDetails" | "terms" | "instructions" | "status"
     >> & {
       additionalAmount?: string;
     },
@@ -82,6 +82,7 @@ export default function P2PMerchantDashboardPage() {
     const nextMin = overrides.minAmount ?? offer.minAmount;
     const nextPrice = overrides.price ?? offer.price;
     const nextPaymentMethods = overrides.paymentMethods ?? offer.paymentMethods;
+    const nextPaymentDetails = overrides.paymentDetails ?? offer.paymentDetails ?? [];
     const nextTerms = overrides.terms ?? offer.terms;
     const nextInstructions = overrides.instructions ?? offer.instructions;
     const metadataHash = p2pMetadataHash({
@@ -96,6 +97,7 @@ export default function P2PMerchantDashboardPage() {
       maxAmount: nextMax,
       availableAmount: nextAvailable,
       paymentMethods: nextPaymentMethods,
+      paymentDetails: nextPaymentDetails,
       terms: nextTerms,
       instructions: nextInstructions,
       status: overrides.status ?? offer.status,
@@ -166,12 +168,22 @@ export default function P2PMerchantDashboardPage() {
   }
 
   function draftFor(offer: P2POffer): OfferDraft {
+    const selectedMethod = offer.paymentMethods[0] ?? P2P_PAYMENT_METHODS[0];
+    const paymentDetail =
+      (offer.paymentDetails ?? []).find((detail) => detail.method === selectedMethod) ??
+      (offer.paymentDetails ?? [])[0];
     return drafts[offer.id] ?? {
       price: offer.price,
       minAmount: offer.minAmount,
       maxAmount: offer.maxAmount,
       availableAmount: offer.availableAmount,
-      paymentMethod: offer.paymentMethods[0] ?? P2P_PAYMENT_METHODS[0],
+      paymentMethod: selectedMethod,
+      paymentDetailLabel: paymentDetail?.label ?? "Primary payment account",
+      paymentRecipientName: paymentDetail?.recipientName ?? "",
+      paymentAccountIdentifier: paymentDetail?.accountIdentifier ?? "",
+      paymentInstitutionName: paymentDetail?.institutionName ?? "",
+      paymentReferenceNote: paymentDetail?.referenceNote ?? "",
+      paymentDetailInstructions: paymentDetail?.instructions ?? "",
       terms: offer.terms,
       instructions: offer.instructions ?? "",
     };
@@ -200,6 +212,18 @@ export default function P2PMerchantDashboardPage() {
       return;
     }
     try {
+      const paymentDetails = [
+        {
+          id: offer.paymentDetails?.find((detail) => detail.method === draft.paymentMethod)?.id ?? crypto.randomUUID(),
+          method: draft.paymentMethod,
+          label: draft.paymentDetailLabel,
+          recipientName: draft.paymentRecipientName,
+          accountIdentifier: draft.paymentAccountIdentifier,
+          institutionName: draft.paymentInstitutionName,
+          referenceNote: draft.paymentReferenceNote,
+          instructions: draft.paymentDetailInstructions,
+        },
+      ];
       const previousAvailable = Number(offer.availableAmount);
       const additionalAmount =
         offer.side === "sell" && available > previousAvailable
@@ -211,6 +235,7 @@ export default function P2PMerchantDashboardPage() {
         maxAmount: draft.maxAmount,
         availableAmount: draft.availableAmount,
         paymentMethods: [draft.paymentMethod],
+        paymentDetails,
         terms: draft.terms,
         instructions: draft.instructions,
         status: "Active",
@@ -222,6 +247,7 @@ export default function P2PMerchantDashboardPage() {
         maxAmount: draft.maxAmount,
         availableAmount: draft.availableAmount,
         paymentMethods: [draft.paymentMethod],
+        paymentDetails,
         terms: draft.terms,
         instructions: draft.instructions,
         status: "Active",
@@ -333,6 +359,31 @@ export default function P2PMerchantDashboardPage() {
                         {P2P_PAYMENT_METHODS.map((method) => <option key={method}>{method}</option>)}
                       </Select>
                     </Field>
+                    <div className="space-y-3 rounded-xl border border-border p-3">
+                      <p className="text-sm font-medium">Payment details customers will see</p>
+                      <Field label="Display label">
+                        <Input value={draftFor(offer).paymentDetailLabel} onChange={(event) => updateDraft(offer, { paymentDetailLabel: event.target.value })} />
+                      </Field>
+                      <div className="grid sm:grid-cols-2 gap-2">
+                        <Field label="Recipient/account name">
+                          <Input value={draftFor(offer).paymentRecipientName} onChange={(event) => updateDraft(offer, { paymentRecipientName: event.target.value })} />
+                        </Field>
+                        <Field label="Account, phone, email, or handle">
+                          <Input value={draftFor(offer).paymentAccountIdentifier} onChange={(event) => updateDraft(offer, { paymentAccountIdentifier: event.target.value })} />
+                        </Field>
+                      </div>
+                      <div className="grid sm:grid-cols-2 gap-2">
+                        <Field label="Institution/provider">
+                          <Input value={draftFor(offer).paymentInstitutionName} onChange={(event) => updateDraft(offer, { paymentInstitutionName: event.target.value })} />
+                        </Field>
+                        <Field label="Payment reference">
+                          <Input value={draftFor(offer).paymentReferenceNote} onChange={(event) => updateDraft(offer, { paymentReferenceNote: event.target.value })} />
+                        </Field>
+                      </div>
+                      <Field label="Method-specific instructions">
+                        <Textarea value={draftFor(offer).paymentDetailInstructions} onChange={(event) => updateDraft(offer, { paymentDetailInstructions: event.target.value })} rows={2} />
+                      </Field>
+                    </div>
                     <Field label="Instructions">
                       <Textarea value={draftFor(offer).instructions} onChange={(event) => updateDraft(offer, { instructions: event.target.value })} rows={2} />
                     </Field>
@@ -398,6 +449,12 @@ interface OfferDraft {
   maxAmount: string;
   availableAmount: string;
   paymentMethod: string;
+  paymentDetailLabel: string;
+  paymentRecipientName: string;
+  paymentAccountIdentifier: string;
+  paymentInstitutionName: string;
+  paymentReferenceNote: string;
+  paymentDetailInstructions: string;
   terms: string;
   instructions: string;
 }

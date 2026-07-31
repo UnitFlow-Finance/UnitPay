@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   addP2PTradeEvidence,
+  addP2PTradeMessage,
   cancelP2PTrade,
   disputeP2PTrade,
   getP2PTrade,
@@ -50,6 +51,16 @@ export async function PATCH(
         submittedByCircleWalletId: actorCircleWalletId,
         label: String(body.label || "Evidence"),
         urlOrReference: String(body.urlOrReference || ""),
+      });
+    } else if (body.action === "message") {
+      if (!body.encryptedPayload || !body.iv) {
+        return NextResponse.json({ error: "Missing encrypted message payload" }, { status: 400 });
+      }
+      trade = await addP2PTradeMessage(id, {
+        senderCircleWalletId: actorCircleWalletId,
+        encryptedPayload: String(body.encryptedPayload),
+        iv: String(body.iv),
+        algorithm: "AES-GCM",
       });
     } else {
       return NextResponse.json({ error: "Unsupported trade action" }, { status: 400 });

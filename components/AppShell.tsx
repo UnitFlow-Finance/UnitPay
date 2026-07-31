@@ -1,8 +1,11 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Send, QrCode, Globe2, Store, Settings, Users, HandCoins } from "lucide-react";
+import { Home, Globe2, Store, Settings, Users, HandCoins } from "lucide-react";
+import { listP2PTradesRemote } from "@/lib/p2p/client";
+import { useWallet } from "@/lib/useWallet";
 import { Logo } from "./Logo";
 
 const NAV_ITEMS = [
@@ -28,6 +31,32 @@ function isActive(pathname: string, href: string): boolean {
  */
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { primaryWallet } = useWallet();
+  const [p2pNeedsAttention, setP2pNeedsAttention] = useState(false);
+  const showP2pAttention = Boolean(primaryWallet?.id && p2pNeedsAttention);
+
+  useEffect(() => {
+    if (!primaryWallet?.id) return;
+    let cancelled = false;
+    async function refreshAttention() {
+      try {
+        const trades = await listP2PTradesRemote(primaryWallet?.id);
+        if (!cancelled) {
+          setP2pNeedsAttention(
+            trades.some((trade) => ["Open", "Locked", "Paid", "Disputed"].includes(trade.status)),
+          );
+        }
+      } catch {
+        if (!cancelled) setP2pNeedsAttention(false);
+      }
+    }
+    void refreshAttention();
+    const interval = window.setInterval(refreshAttention, 30_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [primaryWallet?.id]);
 
   return (
     <div className="flex min-h-full">
@@ -46,7 +75,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   : "text-muted hover:text-foreground hover:bg-surface-elevated"
               }`}
             >
-              <Icon className="w-[18px] h-[18px]" />
+              <span className="relative">
+                <Icon className="w-[18px] h-[18px]" />
+                {href === "/p2p" && showP2pAttention && (
+                  <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-error ring-2 ring-surface" />
+                )}
+              </span>
               {label}
             </Link>
           );
@@ -85,7 +119,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     active ? "bg-primary-light text-primary" : "text-muted"
                   }`}
                 >
-                  <Icon className="w-[18px] h-[18px]" />
+                  <span className="relative">
+                    <Icon className="w-[18px] h-[18px]" />
+                    {href === "/p2p" && showP2pAttention && (
+                      <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-error ring-2 ring-background" />
+                    )}
+                  </span>
                   <span className="max-w-full truncate">{label}</span>
                 </Link>
               );

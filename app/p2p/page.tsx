@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { BriefcaseBusiness, CircleUserRound, History, RefreshCw, ShieldCheck } from "lucide-react";
+import { Bell, BriefcaseBusiness, CircleUserRound, History, RefreshCw, ShieldCheck } from "lucide-react";
 import { listP2PMerchantsRemote, listP2POffersRemote, listP2PTradesRemote } from "@/lib/p2p/client";
 import {
   P2P_ASSETS,
@@ -69,6 +69,11 @@ export default function P2PMarketplacePage() {
     return new Map(merchants.map((merchant) => [merchant.id, merchant]));
   }, [merchants]);
 
+  const tradesNeedingAttention = useMemo(
+    () => trades.filter((trade) => ["Open", "Locked", "Paid", "Disputed"].includes(trade.status)),
+    [trades],
+  );
+
   const visibleOffers = useMemo(() => {
     const requestedAmount = Number(amount);
     const hasAmount = amount.trim() !== "" && !Number.isNaN(requestedAmount) && requestedAmount > 0;
@@ -112,6 +117,26 @@ export default function P2PMarketplacePage() {
           <ShieldCheck className="w-4 h-4" /> Payment methods
         </LinkButton>
       </div>
+
+      {tradesNeedingAttention.length > 0 && (
+        <Link href="/p2p/trades" className="block">
+          <Card className="border-primary/40 bg-primary-light/40 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="relative shrink-0">
+                <Bell className="w-5 h-5 text-primary" />
+                <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-error ring-2 ring-primary-light" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold">P2P trades need attention</p>
+                <p className="text-xs text-muted">
+                  {tradesNeedingAttention.length} locked, paid, open, or disputed trade{tradesNeedingAttention.length === 1 ? "" : "s"}
+                </p>
+              </div>
+            </div>
+            <span className="text-xs font-semibold text-primary">Review</span>
+          </Card>
+        </Link>
+      )}
 
       <div className="grid md:grid-cols-4 gap-4">
         <Card className="md:col-span-1 space-y-3 h-fit">

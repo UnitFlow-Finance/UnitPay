@@ -8,6 +8,7 @@ import type {
   P2PTrade,
   P2PTradeActivity,
   P2PTradeEvidence,
+  P2PEncryptedTradeMessage,
 } from "@/lib/p2p/types";
 
 interface P2PDatabase {
@@ -112,6 +113,7 @@ export async function updateP2POffer(
     | "availableAmount"
     | "totalLiquidity"
     | "paymentMethods"
+    | "paymentDetails"
     | "paymentTimeLimitMinutes"
     | "terms"
     | "instructions"
@@ -206,6 +208,7 @@ export async function createP2PTrade(input: {
       status: "Locked",
       escrowMode: input.escrowMode,
       paymentMethod: input.paymentMethod,
+      paymentDetails: paymentDetailForMethod(offer, input.paymentMethod),
       paymentDeadlineAt,
       evidence: [],
       activity: [
@@ -217,6 +220,7 @@ export async function createP2PTrade(input: {
           createdAt: now,
         },
       ],
+      chatMessages: [],
       createdAt: now,
       updatedAt: now,
     };
@@ -303,6 +307,33 @@ export async function addP2PTradeEvidence(
       actorCircleWalletId: input.submittedByCircleWalletId,
       action: "Evidence submitted",
       note: input.label,
+      createdAt: now,
+    });
+    trade.updatedAt = now;
+    return normalizeTrade(trade);
+  });
+}
+
+export async function addP2PTradeMessage(
+  id: string,
+  input: Omit<P2PEncryptedTradeMessage, "id" | "createdAt">,
+): Promise<P2PTrade | null> {
+  return updateJsonFile(P2P_FILE, emptyDb, (db) => {
+    const trade = db.trades.find((entry) => entry.id === id);
+    if (!trade) return null;
+    const now = new Date().toISOString();
+    trade.chatMessages = [
+      ...(trade.chatMessages ?? []),
+      {
+        ...input,
+        id: crypto.randomUUID(),
+        createdAt: now,
+      },
+    ];
+    appendActivity(trade, {
+      actorCircleWalletId: input.senderCircleWalletId,
+      action: "Encrypted chat message sent",
+      note: "Message content is encrypted in the trade record.",
       createdAt: now,
     });
     trade.updatedAt = now;
@@ -445,6 +476,7 @@ function normalizeOffer(offer: P2POffer): P2POffer {
     pricingMode: offer.pricingMode ?? "fixed",
     priceMarginPercent: offer.priceMarginPercent ?? "0",
     totalLiquidity: offer.totalLiquidity ?? offer.availableAmount,
+    paymentDetails: offer.paymentDetails ?? [],
     paymentTimeLimitMinutes: offer.paymentTimeLimitMinutes ?? 15,
     instructions: offer.instructions ?? "Send fiat payment and upload proof before the deadline.",
     kycRequired: offer.kycRequired ?? false,
@@ -460,7 +492,15 @@ function normalizeTrade(trade: P2PTrade): P2PTrade {
       new Date(new Date(trade.createdAt).getTime() + 15 * 60_000).toISOString(),
     evidence: trade.evidence ?? [],
     activity: trade.activity ?? [],
+    chatMessages: trade.chatMessages ?? [],
   };
+}
+
+function paymentDetailForMethod(offer: P2POffer, method: string) {
+  return (
+    (offer.paymentDetails ?? []).find((detail) => detail.method === method) ??
+    (offer.paymentDetails ?? []).find((detail) => offer.paymentMethods.includes(detail.method))
+  );
 }
 
 function normalizeMerchant(merchant: P2PMerchantProfile): P2PMerchantProfile {

@@ -2,9 +2,10 @@
 
 import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, CheckCircle2, Clock, FileText, ShieldCheck } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock, FileText, LockKeyhole, MessageCircle, Send, ShieldCheck } from "lucide-react";
 import { apiPost } from "@/lib/api";
 import { useCircleSdk } from "@/lib/circle/sdkContext";
+import { decryptP2PChatMessage, encryptP2PChatMessage } from "@/lib/p2p/chatCrypto";
 import { getP2PTradeRemote, updateP2PTradeRemote } from "@/lib/p2p/client";
 import type { P2PTrade } from "@/lib/p2p/types";
 import { useWallet } from "@/lib/useWallet";
@@ -21,6 +22,8 @@ export default function P2PTradeWindowPage({ params }: { params: Promise<{ id: s
   const [proof, setProof] = useState("");
   const [evidence, setEvidence] = useState("");
   const [disputeReason, setDisputeReason] = useState("");
+  const [chatText, setChatText] = useState("");
+  const [decryptedMessages, setDecryptedMessages] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
 
@@ -41,6 +44,28 @@ export default function P2PTradeWindowPage({ params }: { params: Promise<{ id: s
     if (trade.sellerCircleWalletId === actorCircleWalletId) return "seller";
     return "viewer";
   }, [actorCircleWalletId, trade]);
+
+  useEffect(() => {
+    if (!trade) return;
+    const currentTrade = trade;
+    let cancelled = false;
+    async function decryptMessages() {
+      const entries = await Promise.all(
+        (currentTrade.chatMessages ?? []).map(async (chatMessage) => {
+          try {
+            return [chatMessage.id, await decryptP2PChatMessage(currentTrade, chatMessage)] as const;
+          } catch {
+            return [chatMessage.id, "Unable to decrypt this message in the current session."] as const;
+          }
+        }),
+      );
+      if (!cancelled) setDecryptedMessages(Object.fromEntries(entries));
+    }
+    void decryptMessages();
+    return () => {
+      cancelled = true;
+    };
+  }, [trade]);
 
   async function run(action: string, payload: Record<string, unknown>, done: string) {
     if (!actorCircleWalletId) {
@@ -71,6 +96,26 @@ export default function P2PTradeWindowPage({ params }: { params: Promise<{ id: s
       const updated = await updateP2PTradeRemote(id, { action, actorCircleWalletId, ...payload });
       setTrade(updated);
       setMessage(done);
+    } catch (error) {
+      setMessage((error as Error).message ?? String(error));
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function sendChatMessage() {
+    if (!trade || !actorCircleWalletId || !chatText.trim()) return;
+    setWorking(true);
+    setMessage(null);
+    try {
+      const encrypted = await encryptP2PChatMessage(trade, chatText.trim());
+      const updated = await updateP2PTradeRemote(id, {
+        action: "message",
+        actorCircleWalletId,
+        ...encrypted,
+      });
+      setTrade(updated);
+      setChatText("");
     } catch (error) {
       setMessage((error as Error).message ?? String(error));
     } finally {
@@ -113,6 +158,26 @@ export default function P2PTradeWindowPage({ params }: { params: Promise<{ id: s
             </div>
           </Card>
 
+          {trade.paymentDetails && (
+            <Card className="space-y-3">
+              <h2 className="font-semibold">Payment details</h2>
+              <p className="text-xs text-muted">
+                The fiat payer should use these merchant-provided details, then upload proof before the deadline.
+              </p>
+              <div className="grid sm:grid-cols-2 gap-3 text-sm">
+                <Info label="Label" value={trade.paymentDetails.label || trade.paymentDetails.method} />
+                <Info label="Method" value={trade.paymentDetails.method} />
+                {trade.paymentDetails.recipientName && <Info label="Recipient" value={trade.paymentDetails.recipientName} />}
+                {trade.paymentDetails.accountIdentifier && <Info label="Account/ID" value={trade.paymentDetails.accountIdentifier} />}
+                {trade.paymentDetails.institutionName && <Info label="Institution" value={trade.paymentDetails.institutionName} />}
+                {trade.paymentDetails.referenceNote && <Info label="Reference" value={trade.paymentDetails.referenceNote} />}
+              </div>
+              {trade.paymentDetails.instructions && (
+                <p className="text-xs text-muted whitespace-pre-wrap">{trade.paymentDetails.instructions}</p>
+              )}
+            </Card>
+          )}
+
           <Card className="space-y-3">
             <h2 className="font-semibold">Activity</h2>
             {(trade.activity ?? []).length === 0 ? (
@@ -131,6 +196,39 @@ export default function P2PTradeWindowPage({ params }: { params: Promise<{ id: s
         </section>
 
         <section className="md:col-span-2 space-y-4">
+          <Card className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="font-semibold flex items-center gap-2">
+                <MessageCircle className="w-4 h-4 text-primary" /> Encrypted chat
+              </h2>
+              <span className="text-[11px] text-muted inline-flex items-center gap-1">
+                <LockKeyhole className="w-3 h-3" /> AES-GCM
+              </span>
+            </div>
+            {(trade.chatMessages ?? []).length === 0 ? (
+              <p className="text-sm text-muted">No messages yet.</p>
+            ) : (
+              <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                {(trade.chatMessages ?? []).map((chatMessage) => {
+                  const mine = chatMessage.senderCircleWalletId === actorCircleWalletId;
+                  return (
+                    <div key={chatMessage.id} className={`rounded-xl border border-border p-3 text-sm ${mine ? "bg-primary-light/50" : "bg-surface"}`}>
+                      <p className="text-xs text-muted mb-1">{mine ? "You" : chatMessage.senderCircleWalletId}</p>
+                      <p className="whitespace-pre-wrap">{decryptedMessages[chatMessage.id] ?? "Decrypting..."}</p>
+                      <p className="text-[11px] text-subtle mt-1">{new Date(chatMessage.createdAt).toLocaleString()}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            <Field label="Message">
+              <Textarea value={chatText} onChange={(event) => setChatText(event.target.value)} rows={3} placeholder="Encrypted before it is saved to the trade" />
+            </Field>
+            <Button fullWidth disabled={working || role === "viewer" || !chatText.trim()} onClick={sendChatMessage}>
+              <Send className="w-4 h-4" /> Send encrypted message
+            </Button>
+          </Card>
+
           <Card className="space-y-3">
             <h2 className="font-semibold">Trade actions</h2>
             <Field label="Proof of payment">

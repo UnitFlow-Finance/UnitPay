@@ -158,6 +158,23 @@ export default function P2POfferDetailPage({ params }: { params: Promise<{ id: s
             View merchant profile
           </Link>
         )}
+        {(offer.paymentDetails ?? []).length > 0 && (
+          <div className="rounded-xl border border-border p-3 space-y-2">
+            <p className="text-sm font-semibold">Merchant payment details</p>
+            {(offer.paymentDetails ?? []).map((detail) => (
+              <div key={detail.id} className="text-sm space-y-1">
+                <p className="font-medium">{detail.label || detail.method}</p>
+                <div className="grid sm:grid-cols-2 gap-2">
+                  {detail.recipientName && <Info label="Recipient" value={detail.recipientName} />}
+                  {detail.accountIdentifier && <Info label="Account/ID" value={detail.accountIdentifier} />}
+                  {detail.institutionName && <Info label="Institution" value={detail.institutionName} />}
+                  {detail.referenceNote && <Info label="Reference" value={detail.referenceNote} />}
+                </div>
+                {detail.instructions && <p className="text-xs text-muted whitespace-pre-wrap">{detail.instructions}</p>}
+              </div>
+            ))}
+          </div>
+        )}
         <p className="text-sm text-muted whitespace-pre-wrap">{offer.terms}</p>
         <p className="text-xs text-subtle whitespace-pre-wrap">{offer.instructions}</p>
       </Card>

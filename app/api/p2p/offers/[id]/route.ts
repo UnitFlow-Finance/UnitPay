@@ -33,6 +33,18 @@ export async function PATCH(
       availableAmount: body.availableAmount !== undefined ? String(body.availableAmount) : undefined,
       totalLiquidity: body.totalLiquidity !== undefined ? String(body.totalLiquidity) : undefined,
       paymentMethods: Array.isArray(body.paymentMethods) ? body.paymentMethods.map(String) : undefined,
+      paymentDetails: Array.isArray(body.paymentDetails)
+        ? body.paymentDetails.map((detail: Record<string, unknown>) => ({
+            id: String(detail.id || crypto.randomUUID()),
+            method: String(detail.method || body.paymentMethods?.[0] || "Bank Transfer"),
+            label: String(detail.label || detail.method || "Payment details"),
+            recipientName: detail.recipientName ? String(detail.recipientName) : undefined,
+            accountIdentifier: detail.accountIdentifier ? String(detail.accountIdentifier) : undefined,
+            institutionName: detail.institutionName ? String(detail.institutionName) : undefined,
+            referenceNote: detail.referenceNote ? String(detail.referenceNote) : undefined,
+            instructions: detail.instructions ? String(detail.instructions) : undefined,
+          }))
+        : undefined,
       paymentTimeLimitMinutes:
         body.paymentTimeLimitMinutes !== undefined ? Number(body.paymentTimeLimitMinutes) : undefined,
       terms: body.terms !== undefined ? String(body.terms) : undefined,
