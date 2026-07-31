@@ -6,7 +6,7 @@ import Link from "next/link";
 import { apiPost } from "@/lib/api";
 import { useCircleSdk } from "@/lib/circle/sdkContext";
 import { createP2POfferRemote } from "@/lib/p2p/client";
-import { findP2POfferIdByMetadataHash, p2pMetadataHash } from "@/lib/p2p/contract";
+import { p2pMetadataHash, waitForP2POfferIdByMetadataHash } from "@/lib/p2p/contract";
 import { P2P_ASSETS, P2P_FIAT_CURRENCIES, P2P_PAYMENT_METHODS, merchantActionLabel, type P2POfferSide } from "@/lib/p2p/types";
 import { useWallet } from "@/lib/useWallet";
 import { walletForChainKey } from "@/lib/wallet/selectors";
@@ -113,14 +113,14 @@ export default function NewP2POfferPage() {
       );
       await executeChallenge(createChallengeId);
 
-      setError("Confirming on-chain offer...");
-      const onChainOfferId = await findP2POfferIdByMetadataHash({
+      setError("Confirming on-chain offer. This can take up to a minute after wallet approval...");
+      const onChainOfferId = await waitForP2POfferIdByMetadataHash({
         chainKey: "arcTestnet",
         merchant: arcWallet.address as `0x${string}`,
         metadataHash,
       });
       if (onChainOfferId === null) {
-        throw new Error("Offer was submitted, but UnitPay could not find the on-chain offer event yet. Refresh and try again.");
+        throw new Error("Offer was submitted, but UnitPay could not find the on-chain offer event yet. Wait for the transaction to confirm, then refresh the merchant dashboard.");
       }
 
       const offer = await createP2POfferRemote({

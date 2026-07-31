@@ -31,6 +31,7 @@ export async function PATCH(
       minAmount: body.minAmount !== undefined ? String(body.minAmount) : undefined,
       maxAmount: body.maxAmount !== undefined ? String(body.maxAmount) : undefined,
       availableAmount: body.availableAmount !== undefined ? String(body.availableAmount) : undefined,
+      totalLiquidity: body.totalLiquidity !== undefined ? String(body.totalLiquidity) : undefined,
       paymentMethods: Array.isArray(body.paymentMethods) ? body.paymentMethods.map(String) : undefined,
       paymentTimeLimitMinutes:
         body.paymentTimeLimitMinutes !== undefined ? Number(body.paymentTimeLimitMinutes) : undefined,

@@ -3,7 +3,7 @@ import { circleClient, circleConfigured } from "@/lib/circle/client";
 import { circleErrorResponse } from "@/lib/circle/apiError";
 import { getChain, getP2PMarketplaceForChain } from "@/lib/chains/config";
 import { requireUsdcSpendableBalance, requireWalletForBlockchain } from "@/lib/circle/transactionGuards";
-import { p2pEvidenceHash, P2P_OFFER_SIDE_ONCHAIN } from "@/lib/p2p/contract";
+import { p2pEvidenceHash, P2P_OFFER_SIDE_ONCHAIN, P2P_OFFER_STATUS_ONCHAIN } from "@/lib/p2p/contract";
 import { usdcToBaseUnits } from "@/lib/units";
 
 export async function POST(request: Request) {
@@ -93,6 +93,31 @@ export async function POST(request: Request) {
         usdcToBaseUnits(String(body.maxAmount || "")).toString(),
         usdcToBaseUnits(amount).toString(),
         String(Number(body.paymentWindowSeconds || 900)),
+        String(body.metadataHash || ""),
+      ]);
+    }
+
+    if (action === "update-offer") {
+      const side = body.side === "sell" ? "sell" : "buy";
+      const additionalAmount = String(body.additionalAmount || "0");
+      if (side === "sell" && Number(additionalAmount) > 0) {
+        await requireUsdcSpendableBalance({
+          circleClient,
+          userToken,
+          walletId,
+          chainKey: chain.key,
+          amount: additionalAmount,
+        });
+      }
+      const status: keyof typeof P2P_OFFER_STATUS_ONCHAIN =
+        body.status === "Paused" || body.status === "Cancelled" ? body.status : "Active";
+      return execution("updateOffer(uint256,uint256,uint256,uint256,uint256,uint8,bytes32)", [
+        String(body.onChainOfferId),
+        String(body.priceBaseUnits || usdcToBaseUnits(String(body.price || "0")).toString()),
+        usdcToBaseUnits(String(body.minAmount || "")).toString(),
+        usdcToBaseUnits(String(body.maxAmount || "")).toString(),
+        usdcToBaseUnits(String(body.availableAmount || "")).toString(),
+        String(P2P_OFFER_STATUS_ONCHAIN[status]),
         String(body.metadataHash || ""),
       ]);
     }

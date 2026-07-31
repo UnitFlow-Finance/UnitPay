@@ -34,6 +34,12 @@ export const P2P_OFFER_SIDE_ONCHAIN = {
   sell: 1,
 } as const;
 
+export const P2P_OFFER_STATUS_ONCHAIN = {
+  Active: 0,
+  Paused: 1,
+  Cancelled: 2,
+} as const;
+
 export function p2pMetadataHash(input: unknown): `0x${string}` {
   return keccak256(stringToHex(JSON.stringify(input)));
 }
@@ -95,6 +101,24 @@ export async function findP2POfferIdByMetadataHash({
     if (match !== undefined) return match;
     if (fromBlock <= floor) break;
     toBlock = fromBlock - 1n;
+  }
+  return null;
+}
+
+export async function waitForP2POfferIdByMetadataHash(
+  input: Parameters<typeof findP2POfferIdByMetadataHash>[0] & {
+    attempts?: number;
+    intervalMs?: number;
+  },
+): Promise<bigint | null> {
+  const attempts = input.attempts ?? 20;
+  const intervalMs = input.intervalMs ?? 3_000;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const match = await findP2POfferIdByMetadataHash(input);
+    if (match !== null) return match;
+    if (attempt < attempts - 1) {
+      await new Promise((resolve) => window.setTimeout(resolve, intervalMs));
+    }
   }
   return null;
 }

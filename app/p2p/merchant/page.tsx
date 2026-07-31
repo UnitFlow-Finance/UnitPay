@@ -10,6 +10,7 @@ import {
   upsertP2PMerchantRemote,
   updateP2POfferRemote,
 } from "@/lib/p2p/client";
+import { p2pMetadataHash } from "@/lib/p2p/contract";
 import { P2P_PAYMENT_METHODS, merchantActionLabel, type P2PMerchantProfile, type P2POffer } from "@/lib/p2p/types";
 import { useWallet } from "@/lib/useWallet";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -25,6 +26,7 @@ export default function P2PMerchantDashboardPage() {
   const [displayName, setDisplayName] = useState("UnitPay Merchant");
   const [terms, setTerms] = useState("Fast release after fiat payment is confirmed.");
   const [message, setMessage] = useState<string | null>(null);
+  const [liquidityAmounts, setLiquidityAmounts] = useState<Record<string, string>>({});
 
   async function refresh() {
     if (!primaryWallet) return;
@@ -54,10 +56,102 @@ export default function P2PMerchantDashboardPage() {
   }
 
   async function toggleOffer(offer: P2POffer) {
-    const updated = await updateP2POfferRemote(offer.id, {
-      status: offer.status === "Paused" ? "Active" : "Paused",
-    });
+    const status = offer.status === "Paused" ? "Active" : "Paused";
+    await updateOfferOnChain(offer, { status });
+    const updated = await updateP2POfferRemote(offer.id, { status });
     setOffers((previous) => previous.map((entry) => (entry.id === offer.id ? updated : entry)));
+  }
+
+  async function updateOfferOnChain(
+    offer: P2POffer,
+    overrides: Partial<Pick<P2POffer, "availableAmount" | "maxAmount" | "status">> & {
+      additionalAmount?: string;
+    },
+  ) {
+    if (!primaryWallet || !offer.onChainOfferId) return;
+    const userToken = window.localStorage.getItem("unitpay.userToken");
+    if (!userToken) throw new Error("Session expired — please reload.");
+    const nextAvailable = overrides.availableAmount ?? offer.availableAmount;
+    const nextMax = overrides.maxAmount ?? offer.maxAmount;
+    const metadataHash = p2pMetadataHash({
+      offerId: offer.id,
+      onChainOfferId: offer.onChainOfferId,
+      creatorCircleWalletId: offer.creatorCircleWalletId,
+      side: offer.side,
+      asset: offer.asset,
+      fiatCurrency: offer.fiatCurrency,
+      price: offer.price,
+      minAmount: offer.minAmount,
+      maxAmount: nextMax,
+      availableAmount: nextAvailable,
+      paymentMethods: offer.paymentMethods,
+      terms: offer.terms,
+      instructions: offer.instructions,
+      status: overrides.status ?? offer.status,
+    });
+    const additionalAmount = overrides.additionalAmount ?? "0";
+    if (offer.side === "sell" && Number(additionalAmount) > 0) {
+      setMessage("Approving additional escrow liquidity...");
+      const { challengeId } = await apiPost<{ challengeId: string }>("/api/p2p/onchain", {
+        action: "approve",
+        userToken,
+        walletId: primaryWallet.id,
+        chainKey: offer.chainKey ?? "arcTestnet",
+        amount: additionalAmount,
+      });
+      await executeChallenge(challengeId);
+    }
+    setMessage("Updating offer on-chain...");
+    const { challengeId } = await apiPost<{ challengeId: string }>("/api/p2p/onchain", {
+      action: "update-offer",
+      userToken,
+      walletId: primaryWallet.id,
+      chainKey: offer.chainKey ?? "arcTestnet",
+      onChainOfferId: offer.onChainOfferId,
+      side: offer.side,
+      price: offer.price,
+      minAmount: offer.minAmount,
+      maxAmount: nextMax,
+      availableAmount: nextAvailable,
+      additionalAmount,
+      status: overrides.status ?? offer.status,
+      metadataHash,
+    });
+    await executeChallenge(challengeId);
+  }
+
+  async function addLiquidity(offer: P2POffer) {
+    const amount = liquidityAmounts[offer.id] || "";
+    const numeric = Number(amount);
+    if (!amount || Number.isNaN(numeric) || numeric <= 0) {
+      setMessage("Enter a valid liquidity amount.");
+      return;
+    }
+    if (offer.side !== "sell") {
+      setMessage("Only merchant sell offers escrow merchant liquidity. Buy offers lock customer funds when a customer starts a sell trade.");
+      return;
+    }
+    try {
+      const nextAvailable = (Number(offer.availableAmount) + numeric).toString();
+      const nextMax = Math.max(Number(offer.maxAmount), Number(nextAvailable)).toString();
+      await updateOfferOnChain(offer, {
+        availableAmount: nextAvailable,
+        maxAmount: nextMax,
+        status: "Active",
+        additionalAmount: amount,
+      });
+      const updated = await updateP2POfferRemote(offer.id, {
+        availableAmount: nextAvailable,
+        maxAmount: nextMax,
+        totalLiquidity: (Number(offer.totalLiquidity ?? offer.availableAmount) + numeric).toString(),
+        status: "Active",
+      });
+      setOffers((previous) => previous.map((entry) => (entry.id === offer.id ? updated : entry)));
+      setLiquidityAmounts((previous) => ({ ...previous, [offer.id]: "" }));
+      setMessage("Escrow liquidity added and offer enabled.");
+    } catch (error) {
+      setMessage((error as Error).message ?? String(error));
+    }
   }
 
   async function closeOffer(offer: P2POffer) {
@@ -127,6 +221,28 @@ export default function P2PMerchantDashboardPage() {
                   <Info label="Available" value={offer.availableAmount} />
                   <Info label="Limit" value={`${offer.minAmount}-${offer.maxAmount}`} />
                 </div>
+                {offer.side === "sell" ? (
+                  <div className="grid sm:grid-cols-[1fr_auto] gap-2">
+                    <Input
+                      value={liquidityAmounts[offer.id] ?? ""}
+                      onChange={(event) =>
+                        setLiquidityAmounts((previous) => ({
+                          ...previous,
+                          [offer.id]: event.target.value,
+                        }))
+                      }
+                      inputMode="decimal"
+                      placeholder={`Add ${offer.asset} escrow liquidity`}
+                    />
+                    <Button variant="secondary" onClick={() => addLiquidity(offer)}>
+                      Add funds
+                    </Button>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted">
+                    Customer sell offers lock the customer&apos;s tokens when the trade starts, so no merchant escrow is required.
+                  </p>
+                )}
                 <Button variant="secondary" fullWidth onClick={() => toggleOffer(offer)}>
                   {offer.status === "Paused" ? <PlayCircle className="w-4 h-4" /> : <PauseCircle className="w-4 h-4" />}
                   {offer.status === "Paused" ? "Enable offer" : "Disable offer"}

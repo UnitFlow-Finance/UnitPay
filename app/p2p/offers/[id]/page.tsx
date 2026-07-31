@@ -39,6 +39,19 @@ export default function P2POfferDetailPage({ params }: { params: Promise<{ id: s
   async function startTrade() {
     if (!primaryWallet || !offer) return;
     try {
+      const numericAmount = Number(amount);
+      if (!amount || Number.isNaN(numericAmount) || numericAmount <= 0) {
+        throw new Error("Enter a valid trade amount.");
+      }
+      if (numericAmount < Number(offer.minAmount) || numericAmount > Number(offer.maxAmount)) {
+        throw new Error(`Amount must be between ${offer.minAmount} and ${offer.maxAmount} ${offer.asset}.`);
+      }
+      if (numericAmount > Number(offer.availableAmount)) {
+        throw new Error(`Only ${offer.availableAmount} ${offer.asset} is currently available for this offer.`);
+      }
+      if (offer.status !== "Active") {
+        throw new Error("This offer is not active.");
+      }
       if (!arcWallet) throw new Error("Create an Arc Testnet wallet before starting this trade.");
       if (!offer.onChainOfferId) throw new Error("This offer is missing its on-chain offer id.");
       const userToken = window.localStorage.getItem("unitpay.userToken");

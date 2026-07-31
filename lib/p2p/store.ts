@@ -110,6 +110,7 @@ export async function updateP2POffer(
     | "minAmount"
     | "maxAmount"
     | "availableAmount"
+    | "totalLiquidity"
     | "paymentMethods"
     | "paymentTimeLimitMinutes"
     | "terms"
