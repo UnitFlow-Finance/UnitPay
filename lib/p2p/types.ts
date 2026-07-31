@@ -40,6 +40,9 @@ export interface P2POffer {
   merchantId?: string;
   creatorWalletId: string;
   creatorCircleWalletId: string;
+  chainKey?: string;
+  onChainOfferId?: string;
+  custodyMode?: "on_chain_escrow";
   side: P2POfferSide;
   asset: string;
   fiatCurrency: string;
@@ -79,6 +82,8 @@ export interface P2PTradeActivity {
 export interface P2PTrade {
   id: string;
   offerId: string;
+  chainKey?: string;
+  onChainTradeId?: string;
   merchantId?: string;
   buyerCircleWalletId: string;
   sellerCircleWalletId: string;

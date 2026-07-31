@@ -134,6 +134,26 @@ export const METADATA_REGISTRY_ARC_TESTNET = {
 } as const;
 
 /**
+ * UnitPayP2PMarketplace.sol, the real-funds P2P escrow contract. Arc Testnet
+ * is the first live deployment; add per-chain deployments here as the same
+ * contract is rolled out to additional EVM testnets.
+ */
+export const P2P_MARKETPLACE_BY_CHAIN: Record<string, { address: `0x${string}`; deployBlock?: bigint }> = {
+  arcTestnet: {
+    address: "0x14EBC5420dd9B643956947Fd7d35d73E26335491",
+    deployBlock: 54_603_185n,
+  },
+} as const;
+
+export function getP2PMarketplaceForChain(chainKey: string): { address: `0x${string}`; deployBlock?: bigint } {
+  const deployment = P2P_MARKETPLACE_BY_CHAIN[chainKey];
+  if (!deployment || deployment.address === "0x0000000000000000000000000000000000000000") {
+    throw new Error(`P2P marketplace is not deployed for ${chainKey}.`);
+  }
+  return deployment;
+}
+
+/**
  * All chains this build supports, keyed by internal `key`.
  * Arc Testnet is the default/primary chain per the product spec.
  */

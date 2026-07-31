@@ -31,5 +31,10 @@
   "unitPayMetadataRegistryDeployerAddress": "0x3682652cD0995E6972CCF7245a1CAea95C2955b8",
   "unitPayMetadataRegistryTxHash": "0xaa9a78f9021a80ea28125f20aa996b7544b14a980b67213596e37edc9b4d8f3e",
   "unitPayMetadataRegistryDeployedAt": "2026-07-30T13:09:16.680Z",
-  "unitPayMetadataRegistryPreviousAddress": "0xf943340899883Ee20C4f5adF2D489a0c5b4eE773"
+  "unitPayMetadataRegistryPreviousAddress": "0xf943340899883Ee20C4f5adF2D489a0c5b4eE773",
+  "unitPayP2PMarketplace": "0x14EBC5420dd9B643956947Fd7d35d73E26335491",
+  "unitPayP2PMarketplaceDeployMethod": "hardhat",
+  "unitPayP2PMarketplaceDeployerAddress": "0x3682652cD0995E6972CCF7245a1CAea95C2955b8",
+  "unitPayP2PMarketplaceTxHash": "0xc5ca8f87da25ad471949627f71634c0732d6206a37001a3d54399841af57aff7",
+  "unitPayP2PMarketplaceDeployedAt": "2026-07-31T13:46:32.690Z"
 }

@@ -14,6 +14,7 @@ export async function POST(request: Request) {
       offerId: String(body.offerId),
       takerCircleWalletId: String(body.takerCircleWalletId),
       amount: String(body.amount),
+      onChainTradeId: body.onChainTradeId !== undefined ? String(body.onChainTradeId) : undefined,
       escrowMode:
         body.escrowMode === "manual" || body.escrowMode === "ai_arbitrated"
           ? body.escrowMode

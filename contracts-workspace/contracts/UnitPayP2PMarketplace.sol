@@ -131,6 +131,10 @@ contract UnitPayP2PMarketplace is Ownable, ReentrancyGuard {
             status: OfferStatus.Active
         });
 
+        if (side == OfferSide.Sell) {
+            asset.safeTransferFrom(msg.sender, address(this), availableAmount);
+        }
+
         emit OfferCreated(offerId, msg.sender, address(asset), side);
     }
 
@@ -151,6 +155,11 @@ contract UnitPayP2PMarketplace is Ownable, ReentrancyGuard {
         offer.price = price;
         offer.minAmount = minAmount;
         offer.maxAmount = maxAmount;
+        if (offer.side == OfferSide.Sell && availableAmount > offer.availableAmount) {
+            offer.asset.safeTransferFrom(msg.sender, address(this), availableAmount - offer.availableAmount);
+        } else if (offer.side == OfferSide.Sell && availableAmount < offer.availableAmount) {
+            offer.asset.safeTransfer(msg.sender, offer.availableAmount - availableAmount);
+        }
         offer.availableAmount = availableAmount;
         offer.status = status;
         offer.metadataHash = metadataHash;
@@ -168,7 +177,9 @@ contract UnitPayP2PMarketplace is Ownable, ReentrancyGuard {
         address buyer = offer.side == OfferSide.Sell ? msg.sender : offer.merchant;
         address seller = offer.side == OfferSide.Sell ? offer.merchant : msg.sender;
 
-        offer.asset.safeTransferFrom(seller, address(this), amount);
+        if (offer.side == OfferSide.Buy) {
+            offer.asset.safeTransferFrom(seller, address(this), amount);
+        }
 
         tradeId = nextTradeId++;
         trades[tradeId] = Trade({
@@ -214,6 +225,19 @@ contract UnitPayP2PMarketplace is Ownable, ReentrancyGuard {
         trade.status = TradeStatus.Cancelled;
         trade.asset.safeTransfer(trade.seller, trade.amount);
         emit TradeCancelled(tradeId);
+    }
+
+    function cancelOffer(uint256 offerId) external nonReentrant {
+        Offer storage offer = offers[offerId];
+        if (offer.merchant != msg.sender) revert Unauthorized();
+        if (offer.status == OfferStatus.Cancelled) revert OfferNotActive();
+        uint256 refundAmount = offer.side == OfferSide.Sell ? offer.availableAmount : 0;
+        offer.availableAmount = 0;
+        offer.status = OfferStatus.Cancelled;
+        if (refundAmount > 0) {
+            offer.asset.safeTransfer(msg.sender, refundAmount);
+        }
+        emit OfferUpdated(offerId, OfferStatus.Cancelled, 0);
     }
 
     function openDispute(uint256 tradeId, bytes32 evidenceHash) external {

@@ -3,6 +3,8 @@
 import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, CheckCircle2, Clock, FileText, ShieldCheck } from "lucide-react";
+import { apiPost } from "@/lib/api";
+import { useCircleSdk } from "@/lib/circle/sdkContext";
 import { getP2PTradeRemote, updateP2PTradeRemote } from "@/lib/p2p/client";
 import type { P2PTrade } from "@/lib/p2p/types";
 import { useWallet } from "@/lib/useWallet";
@@ -14,6 +16,7 @@ import { Field, Input, Textarea } from "@/components/ui/Input";
 export default function P2PTradeWindowPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { primaryWallet } = useWallet();
+  const { executeChallenge } = useCircleSdk();
   const [trade, setTrade] = useState<P2PTrade | null>(null);
   const [proof, setProof] = useState("");
   const [evidence, setEvidence] = useState("");
@@ -44,9 +47,27 @@ export default function P2PTradeWindowPage({ params }: { params: Promise<{ id: s
       setMessage("Connect a wallet before updating a trade.");
       return;
     }
+    if (!trade) return;
     setWorking(true);
     setMessage(null);
     try {
+      if (trade.onChainTradeId && ["mark-paid", "release", "cancel", "dispute", "resolve"].includes(action)) {
+        const userToken = window.localStorage.getItem("unitpay.userToken");
+        if (!userToken) throw new Error("Session expired — please reload.");
+        const onChainAction = action === "cancel" ? "cancel-expired" : action;
+        setMessage("Submitting on-chain P2P action...");
+        const { challengeId } = await apiPost<{ challengeId: string }>("/api/p2p/onchain", {
+          action: onChainAction,
+          userToken,
+          walletId: primaryWallet?.id,
+          chainKey: trade.chainKey ?? "arcTestnet",
+          onChainTradeId: trade.onChainTradeId,
+          evidence: payload.proofOfPayment ?? payload.urlOrReference ?? payload.reason ?? payload.note ?? "",
+          reason: payload.reason,
+          outcome: payload.outcome,
+        });
+        await executeChallenge(challengeId);
+      }
       const updated = await updateP2PTradeRemote(id, { action, actorCircleWalletId, ...payload });
       setTrade(updated);
       setMessage(done);
@@ -121,8 +142,8 @@ export default function P2PTradeWindowPage({ params }: { params: Promise<{ id: s
             <Button fullWidth variant="secondary" disabled={working || role !== "seller"} onClick={() => run("release", {}, "Escrow released.")}>
               Release escrow
             </Button>
-            <Button fullWidth variant="ghost" disabled={working} onClick={() => run("cancel", {}, "Trade cancelled.")}>
-              Cancel trade
+            <Button fullWidth variant="ghost" disabled={working || trade.status !== "Locked"} onClick={() => run("cancel", {}, "Expired trade cancelled.")}>
+              Cancel expired trade
             </Button>
           </Card>
 

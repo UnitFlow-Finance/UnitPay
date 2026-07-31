@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { PauseCircle, PlayCircle, Save, Star } from "lucide-react";
+import { apiPost } from "@/lib/api";
+import { useCircleSdk } from "@/lib/circle/sdkContext";
 import {
   listP2POffersRemote,
   upsertP2PMerchantRemote,
@@ -17,6 +19,7 @@ import { Field, Input, Textarea } from "@/components/ui/Input";
 
 export default function P2PMerchantDashboardPage() {
   const { primaryWallet } = useWallet();
+  const { executeChallenge } = useCircleSdk();
   const [merchant, setMerchant] = useState<P2PMerchantProfile | null>(null);
   const [offers, setOffers] = useState<P2POffer[]>([]);
   const [displayName, setDisplayName] = useState("UnitPay Merchant");
@@ -55,6 +58,28 @@ export default function P2PMerchantDashboardPage() {
       status: offer.status === "Paused" ? "Active" : "Paused",
     });
     setOffers((previous) => previous.map((entry) => (entry.id === offer.id ? updated : entry)));
+  }
+
+  async function closeOffer(offer: P2POffer) {
+    if (!primaryWallet) return;
+    const userToken = window.localStorage.getItem("unitpay.userToken");
+    if (!userToken) {
+      setMessage("Session expired — please reload.");
+      return;
+    }
+    if (offer.onChainOfferId) {
+      const { challengeId } = await apiPost<{ challengeId: string }>("/api/p2p/onchain", {
+        action: "cancel-offer",
+        userToken,
+        walletId: primaryWallet.id,
+        chainKey: offer.chainKey ?? "arcTestnet",
+        onChainOfferId: offer.onChainOfferId,
+      });
+      await executeChallenge(challengeId);
+    }
+    const updated = await updateP2POfferRemote(offer.id, { status: "Cancelled", availableAmount: "0" });
+    setOffers((previous) => previous.map((entry) => (entry.id === offer.id ? updated : entry)));
+    setMessage("Offer closed and unused on-chain liquidity returned.");
   }
 
   return (
@@ -105,6 +130,9 @@ export default function P2PMerchantDashboardPage() {
                 <Button variant="secondary" fullWidth onClick={() => toggleOffer(offer)}>
                   {offer.status === "Paused" ? <PlayCircle className="w-4 h-4" /> : <PauseCircle className="w-4 h-4" />}
                   {offer.status === "Paused" ? "Enable offer" : "Disable offer"}
+                </Button>
+                <Button variant="ghost" fullWidth onClick={() => closeOffer(offer)}>
+                  Close and return liquidity
                 </Button>
               </Card>
             ))

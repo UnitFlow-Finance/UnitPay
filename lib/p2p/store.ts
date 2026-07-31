@@ -84,7 +84,9 @@ export async function createP2POffer(
     const offer: P2POffer = {
       ...input,
       id: crypto.randomUUID(),
+      chainKey: input.chainKey ?? "arcTestnet",
       merchantId: input.merchantId ?? merchant.id,
+      custodyMode: input.custodyMode ?? "on_chain_escrow",
       totalLiquidity: input.totalLiquidity ?? input.availableAmount,
       paymentTimeLimitMinutes: input.paymentTimeLimitMinutes ?? 15,
       instructions: input.instructions ?? "Send fiat payment using the selected payment method, then mark payment sent.",
@@ -161,6 +163,7 @@ export async function createP2PTrade(input: {
   offerId: string;
   takerCircleWalletId: string;
   amount: string;
+  onChainTradeId?: string;
   escrowMode: P2PTrade["escrowMode"];
   paymentMethod: string;
 }): Promise<P2PTrade | null> {
@@ -190,6 +193,8 @@ export async function createP2PTrade(input: {
     const trade: P2PTrade = {
       id: crypto.randomUUID(),
       offerId: offer.id,
+      chainKey: offer.chainKey ?? "arcTestnet",
+      onChainTradeId: input.onChainTradeId,
       merchantId: offer.merchantId,
       buyerCircleWalletId,
       sellerCircleWalletId,
@@ -434,6 +439,8 @@ function appendActivity(trade: P2PTrade, input: Omit<P2PTradeActivity, "id">): v
 function normalizeOffer(offer: P2POffer): P2POffer {
   return {
     ...offer,
+    chainKey: offer.chainKey ?? "arcTestnet",
+    custodyMode: offer.custodyMode ?? "on_chain_escrow",
     pricingMode: offer.pricingMode ?? "fixed",
     priceMarginPercent: offer.priceMarginPercent ?? "0",
     totalLiquidity: offer.totalLiquidity ?? offer.availableAmount,
@@ -446,6 +453,7 @@ function normalizeOffer(offer: P2POffer): P2POffer {
 function normalizeTrade(trade: P2PTrade): P2PTrade {
   return {
     ...trade,
+    chainKey: trade.chainKey ?? "arcTestnet",
     paymentDeadlineAt:
       trade.paymentDeadlineAt ??
       new Date(new Date(trade.createdAt).getTime() + 15 * 60_000).toISOString(),

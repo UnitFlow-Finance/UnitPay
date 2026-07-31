@@ -4,10 +4,15 @@ import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
+import { apiPost } from "@/lib/api";
+import { useCircleSdk } from "@/lib/circle/sdkContext";
 import { createP2PTradeRemote, getP2POfferRemote } from "@/lib/p2p/client";
+import { findP2PTradeId } from "@/lib/p2p/contract";
 import type { P2POffer, P2PTrade } from "@/lib/p2p/types";
 import { encodeUnitPayQr } from "@/lib/platform/qr";
+import { usdcToBaseUnits } from "@/lib/units";
 import { useWallet } from "@/lib/useWallet";
+import { walletForChainKey } from "@/lib/wallet/selectors";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -16,11 +21,13 @@ import { Field, Input, Select } from "@/components/ui/Input";
 export default function P2POfferDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
-  const { primaryWallet } = useWallet();
+  const { wallets, primaryWallet } = useWallet();
+  const { executeChallenge } = useCircleSdk();
   const [offer, setOffer] = useState<P2POffer | null>(null);
   const [amount, setAmount] = useState("");
   const [escrowMode, setEscrowMode] = useState<P2PTrade["escrowMode"]>("automatic");
   const [message, setMessage] = useState<string | null>(null);
+  const arcWallet = walletForChainKey(wallets, "arcTestnet");
 
   useEffect(() => {
     const timeout = window.setTimeout(async () => {
@@ -32,10 +39,60 @@ export default function P2POfferDetailPage({ params }: { params: Promise<{ id: s
   async function startTrade() {
     if (!primaryWallet || !offer) return;
     try {
+      if (!arcWallet) throw new Error("Create an Arc Testnet wallet before starting this trade.");
+      if (!offer.onChainOfferId) throw new Error("This offer is missing its on-chain offer id.");
+      const userToken = window.localStorage.getItem("unitpay.userToken");
+      if (!userToken) throw new Error("Session expired — please reload.");
+      const takerLocksFunds = offer.side === "buy";
+      if (takerLocksFunds) {
+        setMessage("Approving P2P escrow to lock your USDC for sale...");
+        const { challengeId: approveChallengeId } = await apiPost<{ challengeId: string }>(
+          "/api/p2p/onchain",
+          {
+            action: "approve",
+            userToken,
+            walletId: arcWallet.id,
+            chainKey: offer.chainKey ?? "arcTestnet",
+            amount,
+          },
+        );
+        await executeChallenge(approveChallengeId);
+      }
+
+      setMessage("Starting on-chain P2P trade...");
+      const { challengeId: startChallengeId } = await apiPost<{ challengeId: string }>(
+        "/api/p2p/onchain",
+        {
+          action: "start-trade",
+          userToken,
+          walletId: arcWallet.id,
+          chainKey: offer.chainKey ?? "arcTestnet",
+          onChainOfferId: offer.onChainOfferId,
+          amount,
+          takerLocksFunds,
+        },
+      );
+      await executeChallenge(startChallengeId);
+
+      setMessage("Confirming on-chain trade...");
+      const buyer = offer.side === "sell" ? arcWallet.address : offer.creatorWalletId;
+      const seller = offer.side === "sell" ? offer.creatorWalletId : arcWallet.address;
+      const onChainTradeId = await findP2PTradeId({
+        chainKey: offer.chainKey ?? "arcTestnet",
+        offerId: BigInt(offer.onChainOfferId),
+        buyer: buyer as `0x${string}`,
+        seller: seller as `0x${string}`,
+        amountBaseUnits: usdcToBaseUnits(amount),
+      });
+      if (onChainTradeId === null) {
+        throw new Error("Trade was submitted, but UnitPay could not find the on-chain trade event yet. Refresh and try again.");
+      }
+
       const trade = await createP2PTradeRemote({
         offerId: offer.id,
         takerCircleWalletId: primaryWallet.id,
         amount,
+        onChainTradeId: onChainTradeId.toString(),
         escrowMode,
         paymentMethod: offer.paymentMethods[0],
       });

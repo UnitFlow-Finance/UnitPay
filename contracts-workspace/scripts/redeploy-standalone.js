@@ -20,6 +20,7 @@ const DEPLOYMENT_KEY_BY_CONTRACT = {
   UnitPayEscrow: "unitPayEscrow",
   UnitPayPacket: "unitPayPacket",
   UnitPayMetadataRegistry: "unitPayMetadataRegistry",
+  UnitPayP2PMarketplace: "unitPayP2PMarketplace",
 };
 
 async function main() {
@@ -43,6 +44,8 @@ async function main() {
   const instance =
     contractName === "UnitPayMetadataRegistry"
       ? await Factory.deploy()
+      : contractName === "UnitPayP2PMarketplace"
+        ? await Factory.deploy(signer.address)
       : await Factory.deploy(ARC_TESTNET_USDC);
   await instance.waitForDeployment();
   const address = await instance.getAddress();
@@ -50,7 +53,13 @@ async function main() {
 
   console.log(`${contractName} deployed to ${address} (tx ${deployTx.hash})`);
 
-  if (contractName !== "UnitPayMetadataRegistry") {
+  if (contractName === "UnitPayP2PMarketplace") {
+    const arbitrator = await instance.arbitrator();
+    if (arbitrator.toLowerCase() !== signer.address.toLowerCase()) {
+      throw new Error(`Sanity check failed: arbitrator() returned ${arbitrator}`);
+    }
+    console.log(`Sanity check passed: arbitrator() == ${arbitrator}`);
+  } else if (contractName !== "UnitPayMetadataRegistry") {
     const usdcOnChain = await instance.usdc();
     if (usdcOnChain.toLowerCase() !== ARC_TESTNET_USDC.toLowerCase()) {
       throw new Error(`Sanity check failed: usdc() returned ${usdcOnChain}`);
