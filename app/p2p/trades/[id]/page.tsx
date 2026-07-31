@@ -160,9 +160,13 @@ export default function P2PTradeWindowPage({ params }: { params: Promise<{ id: s
 
           {trade.paymentDetails && (
             <Card className="space-y-3">
-              <h2 className="font-semibold">Payment details</h2>
+              <h2 className="font-semibold">
+                {trade.paymentDetailsProvidedBy === "customer" ? "Customer payout details" : "Merchant payment details"}
+              </h2>
               <p className="text-xs text-muted">
-                The fiat payer should use these merchant-provided details, then upload proof before the deadline.
+                {trade.paymentDetailsProvidedBy === "customer"
+                  ? "The merchant should use these customer-provided details to pay for the USDC being sold."
+                  : "The fiat payer should use these merchant-provided details, then upload proof before the deadline."}
               </p>
               <div className="grid sm:grid-cols-2 gap-3 text-sm">
                 <Info label="Label" value={trade.paymentDetails.label || trade.paymentDetails.method} />

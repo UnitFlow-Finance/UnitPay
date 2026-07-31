@@ -118,6 +118,7 @@ export interface P2PTrade {
   escrowMode: "automatic" | "ai_arbitrated" | "manual";
   paymentMethod: string;
   paymentDetails?: P2PPaymentDetail;
+  paymentDetailsProvidedBy?: "merchant" | "customer";
   paymentDeadlineAt: string;
   proofOfPayment?: string;
   disputeReason?: string;

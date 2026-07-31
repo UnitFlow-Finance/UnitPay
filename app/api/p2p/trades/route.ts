@@ -20,6 +20,28 @@ export async function POST(request: Request) {
           ? body.escrowMode
           : "automatic",
       paymentMethod: String(body.paymentMethod || "Bank Transfer"),
+      customerPaymentDetails: body.customerPaymentDetails
+        ? {
+            id: String(body.customerPaymentDetails.id || crypto.randomUUID()),
+            method: String(body.customerPaymentDetails.method || body.paymentMethod || "Bank Transfer"),
+            label: String(body.customerPaymentDetails.label || "Customer payout details"),
+            recipientName: body.customerPaymentDetails.recipientName
+              ? String(body.customerPaymentDetails.recipientName)
+              : undefined,
+            accountIdentifier: body.customerPaymentDetails.accountIdentifier
+              ? String(body.customerPaymentDetails.accountIdentifier)
+              : undefined,
+            institutionName: body.customerPaymentDetails.institutionName
+              ? String(body.customerPaymentDetails.institutionName)
+              : undefined,
+            referenceNote: body.customerPaymentDetails.referenceNote
+              ? String(body.customerPaymentDetails.referenceNote)
+              : undefined,
+            instructions: body.customerPaymentDetails.instructions
+              ? String(body.customerPaymentDetails.instructions)
+              : undefined,
+          }
+        : undefined,
     });
     return NextResponse.json({ trade }, { status: trade ? 201 : 404 });
   } catch (error) {

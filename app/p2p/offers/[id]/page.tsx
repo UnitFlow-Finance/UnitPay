@@ -26,6 +26,12 @@ export default function P2POfferDetailPage({ params }: { params: Promise<{ id: s
   const [offer, setOffer] = useState<P2POffer | null>(null);
   const [amount, setAmount] = useState("");
   const [escrowMode, setEscrowMode] = useState<P2PTrade["escrowMode"]>("automatic");
+  const [customerPaymentLabel, setCustomerPaymentLabel] = useState("My payout details");
+  const [customerRecipientName, setCustomerRecipientName] = useState("");
+  const [customerAccountIdentifier, setCustomerAccountIdentifier] = useState("");
+  const [customerInstitutionName, setCustomerInstitutionName] = useState("");
+  const [customerReferenceNote, setCustomerReferenceNote] = useState("");
+  const [customerPaymentInstructions, setCustomerPaymentInstructions] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const arcWallet = walletForChainKey(wallets, "arcTestnet");
 
@@ -52,11 +58,15 @@ export default function P2POfferDetailPage({ params }: { params: Promise<{ id: s
       if (offer.status !== "Active") {
         throw new Error("This offer is not active.");
       }
+      const customerSellsToMerchant = offer.side === "buy";
+      if (customerSellsToMerchant && !customerAccountIdentifier.trim()) {
+        throw new Error("Add your payout account details before selling to this merchant.");
+      }
       if (!arcWallet) throw new Error("Create an Arc Testnet wallet before starting this trade.");
       if (!offer.onChainOfferId) throw new Error("This offer is missing its on-chain offer id.");
       const userToken = window.localStorage.getItem("unitpay.userToken");
       if (!userToken) throw new Error("Session expired — please reload.");
-      const takerLocksFunds = offer.side === "buy";
+      const takerLocksFunds = customerSellsToMerchant;
       if (takerLocksFunds) {
         setMessage("Approving P2P escrow to lock your USDC for sale...");
         const { challengeId: approveChallengeId } = await apiPost<{ challengeId: string }>(
@@ -108,6 +118,18 @@ export default function P2POfferDetailPage({ params }: { params: Promise<{ id: s
         onChainTradeId: onChainTradeId.toString(),
         escrowMode,
         paymentMethod: offer.paymentMethods[0],
+        customerPaymentDetails: customerSellsToMerchant
+          ? {
+              id: crypto.randomUUID(),
+              method: offer.paymentMethods[0],
+              label: customerPaymentLabel,
+              recipientName: customerRecipientName,
+              accountIdentifier: customerAccountIdentifier,
+              institutionName: customerInstitutionName,
+              referenceNote: customerReferenceNote,
+              instructions: customerPaymentInstructions,
+            }
+          : undefined,
       });
       router.push(`/p2p/trades/${trade.id}`);
     } catch (err) {
@@ -158,23 +180,6 @@ export default function P2POfferDetailPage({ params }: { params: Promise<{ id: s
             View merchant profile
           </Link>
         )}
-        {(offer.paymentDetails ?? []).length > 0 && (
-          <div className="rounded-xl border border-border p-3 space-y-2">
-            <p className="text-sm font-semibold">Merchant payment details</p>
-            {(offer.paymentDetails ?? []).map((detail) => (
-              <div key={detail.id} className="text-sm space-y-1">
-                <p className="font-medium">{detail.label || detail.method}</p>
-                <div className="grid sm:grid-cols-2 gap-2">
-                  {detail.recipientName && <Info label="Recipient" value={detail.recipientName} />}
-                  {detail.accountIdentifier && <Info label="Account/ID" value={detail.accountIdentifier} />}
-                  {detail.institutionName && <Info label="Institution" value={detail.institutionName} />}
-                  {detail.referenceNote && <Info label="Reference" value={detail.referenceNote} />}
-                </div>
-                {detail.instructions && <p className="text-xs text-muted whitespace-pre-wrap">{detail.instructions}</p>}
-              </div>
-            ))}
-          </div>
-        )}
         <p className="text-sm text-muted whitespace-pre-wrap">{offer.terms}</p>
         <p className="text-xs text-subtle whitespace-pre-wrap">{offer.instructions}</p>
       </Card>
@@ -189,6 +194,38 @@ export default function P2POfferDetailPage({ params }: { params: Promise<{ id: s
             <option value="manual">Manual dispute resolution</option>
           </Select>
         </Field>
+        {offer.side === "buy" && (
+          <div className="space-y-3 rounded-xl border border-border p-3">
+            <div>
+              <p className="text-sm font-semibold">Your payout details</p>
+              <p className="text-xs text-muted">
+                The merchant will see these after the trade starts so they can pay you.
+              </p>
+            </div>
+            <Field label="Display label">
+              <Input value={customerPaymentLabel} onChange={(event) => setCustomerPaymentLabel(event.target.value)} />
+            </Field>
+            <div className="grid sm:grid-cols-2 gap-3">
+              <Field label="Recipient/account name">
+                <Input value={customerRecipientName} onChange={(event) => setCustomerRecipientName(event.target.value)} placeholder="Your legal or account name" />
+              </Field>
+              <Field label="Account, phone, email, or handle">
+                <Input value={customerAccountIdentifier} onChange={(event) => setCustomerAccountIdentifier(event.target.value)} placeholder="Where the merchant should pay you" />
+              </Field>
+            </div>
+            <div className="grid sm:grid-cols-2 gap-3">
+              <Field label="Institution/provider">
+                <Input value={customerInstitutionName} onChange={(event) => setCustomerInstitutionName(event.target.value)} placeholder="Bank, wallet, mobile money provider" />
+              </Field>
+              <Field label="Payment reference">
+                <Input value={customerReferenceNote} onChange={(event) => setCustomerReferenceNote(event.target.value)} placeholder="Reference you want the merchant to include" />
+              </Field>
+            </div>
+            <Field label="Extra instructions">
+              <Input value={customerPaymentInstructions} onChange={(event) => setCustomerPaymentInstructions(event.target.value)} placeholder="Optional payout instructions" />
+            </Field>
+          </div>
+        )}
         <Button onClick={startTrade} disabled={!primaryWallet || !amount} fullWidth>
           {customerActionLabel(offer.side)} {offer.asset}
         </Button>

@@ -9,6 +9,7 @@ import type {
   P2PTradeActivity,
   P2PTradeEvidence,
   P2PEncryptedTradeMessage,
+  P2PPaymentDetail,
 } from "@/lib/p2p/types";
 
 interface P2PDatabase {
@@ -181,6 +182,7 @@ export async function createP2PTrade(input: {
   onChainTradeId?: string;
   escrowMode: P2PTrade["escrowMode"];
   paymentMethod: string;
+  customerPaymentDetails?: P2PPaymentDetail;
 }): Promise<P2PTrade | null> {
   return updateJsonFile(P2P_FILE, emptyDb, (db) => {
     const offer = db.offers.find((entry) => entry.id === input.offerId);
@@ -205,6 +207,10 @@ export async function createP2PTrade(input: {
       offer.side === "sell" ? input.takerCircleWalletId : offer.creatorCircleWalletId;
     const sellerCircleWalletId =
       offer.side === "sell" ? offer.creatorCircleWalletId : input.takerCircleWalletId;
+    const paymentDetails =
+      offer.side === "buy"
+        ? input.customerPaymentDetails
+        : paymentDetailForMethod(offer, input.paymentMethod);
     const trade: P2PTrade = {
       id: crypto.randomUUID(),
       offerId: offer.id,
@@ -220,7 +226,8 @@ export async function createP2PTrade(input: {
       status: "Locked",
       escrowMode: input.escrowMode,
       paymentMethod: input.paymentMethod,
-      paymentDetails: paymentDetailForMethod(offer, input.paymentMethod),
+      paymentDetails,
+      paymentDetailsProvidedBy: offer.side === "buy" && paymentDetails ? "customer" : "merchant",
       paymentDeadlineAt,
       evidence: [],
       activity: [
@@ -506,6 +513,9 @@ function normalizeTrade(trade: P2PTrade): P2PTrade {
     paymentDeadlineAt:
       trade.paymentDeadlineAt ??
       new Date(new Date(trade.createdAt).getTime() + 15 * 60_000).toISOString(),
+    paymentDetailsProvidedBy:
+      trade.paymentDetailsProvidedBy ??
+      (trade.paymentDetails ? "merchant" : undefined),
     evidence: trade.evidence ?? [],
     activity: trade.activity ?? [],
     chatMessages: trade.chatMessages ?? [],
