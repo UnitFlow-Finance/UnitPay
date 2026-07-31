@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { Camera, ScanLine } from "lucide-react";
+import { Camera, ScanLine, Upload } from "lucide-react";
 import { encodeUnitPayQr, parseUnitPayQr } from "@/lib/platform/qr";
 import { useWallet } from "@/lib/useWallet";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -15,6 +15,7 @@ type GenerateKind = "receive" | "payment" | "merchant" | "profile";
 export default function UniversalQrPage() {
   const { primaryWallet } = useWallet();
   const scannerRef = useRef<HTMLDivElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const scannerInstance = useRef<{ stop: () => Promise<void>; clear: () => void } | null>(null);
   const [rawValue, setRawValue] = useState("");
   const [generateKind, setGenerateKind] = useState<GenerateKind>("receive");
@@ -56,6 +57,26 @@ export default function UniversalQrPage() {
   async function stopScanner() {
     await scannerInstance.current?.stop().catch(() => undefined);
     scannerInstance.current?.clear();
+    scannerInstance.current = null;
+  }
+
+  async function decodeUploadedQr(file: File | null) {
+    if (!file || !scannerRef.current) return;
+    setScanError(null);
+    await stopScanner();
+    try {
+      const { Html5Qrcode } = await import("html5-qrcode");
+      const scanner = new Html5Qrcode(scannerRef.current.id);
+      scannerInstance.current = scanner;
+      const decodedText = await scanner.scanFile(file, true);
+      setRawValue(decodedText);
+      scanner.clear();
+      scannerInstance.current = null;
+    } catch (err) {
+      setScanError((err as Error).message ?? String(err));
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
   }
 
   return (
@@ -68,10 +89,18 @@ export default function UniversalQrPage() {
             <h2 className="font-medium">Scan or paste</h2>
           </div>
           <div id="unitpay-qr-scanner" ref={scannerRef} className="overflow-hidden rounded-xl bg-surface min-h-40" />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <Button onClick={startScanner} variant="secondary"><Camera className="w-4 h-4" /> Scan</Button>
+            <Button onClick={() => fileInputRef.current?.click()} variant="secondary"><Upload className="w-4 h-4" /> Upload</Button>
             <Button onClick={stopScanner} variant="secondary">Stop</Button>
           </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(event) => void decodeUploadedQr(event.target.files?.[0] ?? null)}
+          />
           <Field label="QR payload">
             <Input value={rawValue} onChange={(event) => setRawValue(event.target.value)} />
           </Field>

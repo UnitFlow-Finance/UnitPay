@@ -35,6 +35,7 @@ export async function listP2POffers(filters?: {
   const db = await readJsonFile(P2P_FILE, emptyDb);
   return db.offers
     .map(normalizeOffer)
+    .filter(hasOnChainOfferId)
     .filter((offer) =>
       filters?.status
         ? filters.status === "all" || offer.status === filters.status
@@ -140,6 +141,17 @@ export async function deleteP2POffer(id: string): Promise<boolean> {
     if (index === -1) return false;
     db.offers.splice(index, 1);
     return true;
+  });
+}
+
+export async function pruneP2POffersMissingOnChainId(): Promise<{ removed: number; removedIds: string[] }> {
+  return updateJsonFile(P2P_FILE, emptyDb, (db) => {
+    const removedIds = db.offers
+      .filter((offer) => !hasOnChainOfferId(offer))
+      .map((offer) => offer.id);
+    if (removedIds.length === 0) return { removed: 0, removedIds };
+    db.offers = db.offers.filter(hasOnChainOfferId);
+    return { removed: removedIds.length, removedIds };
   });
 }
 
@@ -481,6 +493,10 @@ function normalizeOffer(offer: P2POffer): P2POffer {
     instructions: offer.instructions ?? "Send fiat payment and upload proof before the deadline.",
     kycRequired: offer.kycRequired ?? false,
   };
+}
+
+function hasOnChainOfferId(offer: P2POffer): boolean {
+  return typeof offer.onChainOfferId === "string" && offer.onChainOfferId.trim().length > 0;
 }
 
 function normalizeTrade(trade: P2PTrade): P2PTrade {
