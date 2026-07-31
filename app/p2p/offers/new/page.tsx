@@ -92,6 +92,8 @@ export default function NewP2POfferPage() {
           },
         );
         await executeChallenge(approveChallengeId);
+      } else {
+        setError("Creating a merchant buy offer. No merchant escrow is required; customers lock their USDC when they sell to you.");
       }
 
       setError(`Creating on-chain P2P offer. Merchant action: ${merchantActionLabel(side).toLowerCase()} ${asset}...`);
@@ -215,6 +217,12 @@ export default function NewP2POfferPage() {
           This is a merchant offer. If you sell crypto, customers see it as a Buy offer. If
           you buy crypto, customers see it as a Sell offer.
         </p>
+        {side === "buy" && (
+          <p className="text-xs text-muted">
+            Buy offers are fiat-first: you do not escrow crypto now. The customer locks
+            their USDC on-chain when they accept your offer.
+          </p>
+        )}
         <Field label="Payment method">
           <Select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)}>
             {P2P_PAYMENT_METHODS.map((entry) => (

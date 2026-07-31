@@ -105,6 +105,42 @@ export async function findP2POfferIdByMetadataHash({
   return null;
 }
 
+export async function findP2POfferIdByContractState({
+  chainKey,
+  merchant,
+  metadataHash,
+  maxRecentOffers = 25n,
+}: {
+  chainKey: string;
+  merchant: Address;
+  metadataHash: `0x${string}`;
+  maxRecentOffers?: bigint;
+}): Promise<bigint | null> {
+  const deployment = getP2PMarketplaceForChain(chainKey);
+  const client = getP2PPublicClient(chainKey);
+  const nextOfferId = await client.readContract({
+    address: deployment.address,
+    abi: P2P_MARKETPLACE_ABI,
+    functionName: "nextOfferId",
+  });
+  if (nextOfferId === 0n) return null;
+
+  const floor = nextOfferId > maxRecentOffers ? nextOfferId - maxRecentOffers : 0n;
+  for (let id = nextOfferId - 1n; id >= floor; id -= 1n) {
+    const offer = await client.readContract({
+      address: deployment.address,
+      abi: P2P_MARKETPLACE_ABI,
+      functionName: "offers",
+      args: [id],
+    });
+    if (offer[0].toLowerCase() === merchant.toLowerCase() && offer[8] === metadataHash) {
+      return id;
+    }
+    if (id === 0n) break;
+  }
+  return null;
+}
+
 export async function waitForP2POfferIdByMetadataHash(
   input: Parameters<typeof findP2POfferIdByMetadataHash>[0] & {
     attempts?: number;
@@ -114,7 +150,9 @@ export async function waitForP2POfferIdByMetadataHash(
   const attempts = input.attempts ?? 20;
   const intervalMs = input.intervalMs ?? 3_000;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
-    const match = await findP2POfferIdByMetadataHash(input);
+    const match =
+      (await findP2POfferIdByMetadataHash(input)) ??
+      (await findP2POfferIdByContractState(input));
     if (match !== null) return match;
     if (attempt < attempts - 1) {
       await new Promise((resolve) => window.setTimeout(resolve, intervalMs));
