@@ -22,6 +22,9 @@ export default function NewP2POfferPage() {
   const [maxAmount, setMaxAmount] = useState("500");
   const [availableAmount, setAvailableAmount] = useState("500");
   const [paymentMethod, setPaymentMethod] = useState("Bank Transfer");
+  const [timeLimit, setTimeLimit] = useState("15");
+  const [instructions, setInstructions] = useState("Send fiat payment using the selected method, then upload proof before the deadline.");
+  const [kycRequired, setKycRequired] = useState(false);
   const [terms, setTerms] = useState("");
   const [status, setStatus] = useState<"idle" | "working">("idle");
   const [error, setError] = useState<string | null>(null);
@@ -59,6 +62,9 @@ export default function NewP2POfferPage() {
         maxAmount,
         availableAmount,
         paymentMethods: [paymentMethod],
+        paymentTimeLimitMinutes: Number(timeLimit),
+        instructions,
+        kycRequired,
         terms,
       });
       router.push(`/p2p/offers/${offer.id}`);
@@ -137,6 +143,18 @@ export default function NewP2POfferPage() {
               <option key={entry}>{entry}</option>
             ))}
           </Select>
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Payment deadline (minutes)">
+            <Input value={timeLimit} onChange={(event) => setTimeLimit(event.target.value)} inputMode="numeric" />
+          </Field>
+          <label className="flex items-end gap-2 text-sm text-muted pb-2">
+            <input type="checkbox" checked={kycRequired} onChange={(event) => setKycRequired(event.target.checked)} />
+            KYC required
+          </label>
+        </div>
+        <Field label="Automatic instructions">
+          <Textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} rows={3} />
         </Field>
         <Field label="Terms">
           <Textarea value={terms} onChange={(event) => setTerms(event.target.value)} rows={4} />

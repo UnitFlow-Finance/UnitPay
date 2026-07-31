@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { CreditCard, Snowflake } from "lucide-react";
 import { createVirtualCardRemote, listVirtualCardsRemote, updateVirtualCardStatusRemote } from "@/lib/cards/client";
 import type { VirtualCard, VirtualCardType } from "@/lib/cards/types";
@@ -87,19 +88,19 @@ export default function VirtualCardsPage() {
             <Card className="text-sm text-muted">No virtual cards yet.</Card>
           ) : (
             cards.map((card) => (
-              <Card key={card.id} className="space-y-3">
+              <Card key={card.id} className="space-y-3 hover:border-primary/40 transition-colors">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
+                  <Link href={`/wallet/cards/${card.id}`} className="flex items-center gap-3 min-w-0">
                     <CreditCard className="w-5 h-5 text-primary" />
-                    <div>
+                    <div className="min-w-0">
                       <p className="font-medium">{card.label}</p>
-                      <p className="text-xs text-muted">Mastercard · **** {card.last4} · {card.cardType}</p>
+                      <p className="text-xs text-muted">{card.network} · **** {card.last4} · {card.cardType}</p>
                     </div>
-                  </div>
+                  </Link>
                   <span className="text-xs font-medium">{card.status}</span>
                 </div>
                 <div className="grid grid-cols-3 gap-3 text-sm">
-                  <Info label="Monthly" value={`${card.spentThisMonth}/${card.monthlyLimit}`} />
+                  <Info label="Balance" value={`${card.balance} ${card.currency}`} />
                   <Info label="Per tx" value={card.perTransactionLimit} />
                   <Info label="Asset" value={card.spendAsset} />
                 </div>

@@ -7,6 +7,8 @@ export async function GET(request: Request) {
     side: url.searchParams.get("side") || undefined,
     asset: url.searchParams.get("asset") || undefined,
     fiatCurrency: url.searchParams.get("fiatCurrency") || undefined,
+    status: url.searchParams.get("status") || undefined,
+    merchantId: url.searchParams.get("merchantId") || undefined,
   });
   return NextResponse.json({ offers });
 }
@@ -43,7 +45,16 @@ export async function POST(request: Request) {
       paymentMethods: Array.isArray(body.paymentMethods)
         ? body.paymentMethods.map(String)
         : ["Bank Transfer"],
+      pricingMode:
+        body.pricingMode === "market_premium" || body.pricingMode === "market_discount"
+          ? body.pricingMode
+          : "fixed",
+      priceMarginPercent: String(body.priceMarginPercent || "0"),
+      totalLiquidity: String(body.totalLiquidity || body.availableAmount || body.maxAmount || "1"),
+      paymentTimeLimitMinutes: Number(body.paymentTimeLimitMinutes || 15),
       terms: String(body.terms || "Follow the trade instructions and only confirm after payment."),
+      instructions: String(body.instructions || "Pay the merchant, upload proof, then wait for escrow release."),
+      kycRequired: Boolean(body.kycRequired),
     });
     return NextResponse.json({ offer }, { status: 201 });
   } catch (error) {

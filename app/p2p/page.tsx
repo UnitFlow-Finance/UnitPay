@@ -2,25 +2,29 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { RefreshCw } from "lucide-react";
-import { listP2POffersRemote } from "@/lib/p2p/client";
+import { BriefcaseBusiness, History, RefreshCw, ShieldCheck } from "lucide-react";
+import { listP2POffersRemote, listP2PTradesRemote } from "@/lib/p2p/client";
 import {
   P2P_ASSETS,
   P2P_FIAT_CURRENCIES,
   P2P_PAYMENT_METHODS,
   type P2POffer,
   type P2POfferSide,
+  type P2PTrade,
 } from "@/lib/p2p/types";
+import { useWallet } from "@/lib/useWallet";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
 import { LinkButton } from "@/components/ui/Button";
 import { Field, Select } from "@/components/ui/Input";
 
 export default function P2PMarketplacePage() {
+  const { primaryWallet } = useWallet();
   const [side, setSide] = useState<P2POfferSide | "all">("all");
   const [asset, setAsset] = useState("USDC");
   const [fiatCurrency, setFiatCurrency] = useState("USD");
   const [offers, setOffers] = useState<P2POffer[]>([]);
+  const [trades, setTrades] = useState<P2PTrade[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -37,6 +41,9 @@ export default function P2PMarketplacePage() {
     setError(null);
     try {
       setOffers(await listP2POffersRemote(filters));
+      if (primaryWallet?.id) {
+        setTrades(await listP2PTradesRemote(primaryWallet.id));
+      }
     } catch (err) {
       setError((err as Error).message ?? String(err));
     } finally {
@@ -48,11 +55,23 @@ export default function P2PMarketplacePage() {
     const timeout = window.setTimeout(() => void refresh(), 0);
     return () => window.clearTimeout(timeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters]);
+  }, [filters, primaryWallet?.id]);
 
   return (
     <main className="px-4 sm:px-6 lg:px-8 py-6 sm:py-8 max-w-md md:max-w-5xl mx-auto w-full space-y-6">
       <PageHeader title="P2P Marketplace" backHref="/wallet" />
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <LinkButton href="/p2p/merchant" variant="secondary" fullWidth>
+          <BriefcaseBusiness className="w-4 h-4" /> Merchant dashboard
+        </LinkButton>
+        <LinkButton href="/p2p/trades" variant="secondary" fullWidth>
+          <History className="w-4 h-4" /> Trade history
+        </LinkButton>
+        <LinkButton href="/p2p/payment-methods" variant="secondary" fullWidth>
+          <ShieldCheck className="w-4 h-4" /> Payment methods
+        </LinkButton>
+      </div>
 
       <div className="grid md:grid-cols-4 gap-4">
         <Card className="md:col-span-1 space-y-3 h-fit">
@@ -84,6 +103,16 @@ export default function P2PMarketplacePage() {
             Settlement uses a dedicated P2P balance model: deposit, lock for trade, release or
             refund, then withdraw.
           </p>
+          {trades.length > 0 && (
+            <div className="pt-2 border-t border-border space-y-2">
+              <p className="text-xs font-medium text-muted uppercase">Active trades</p>
+              {trades.slice(0, 3).map((trade) => (
+                <Link key={trade.id} href={`/p2p/trades/${trade.id}`} className="block text-xs text-accent hover:text-primary">
+                  {trade.status} · {trade.cryptoAmount} {trade.asset}
+                </Link>
+              ))}
+            </div>
+          )}
         </Card>
 
         <section className="md:col-span-3 space-y-3">
@@ -117,7 +146,7 @@ export default function P2PMarketplacePage() {
                     {offer.availableAmount} {offer.asset}
                   </p>
                   <p className="text-xs text-subtle">
-                    {offer.paymentMethods.join(", ") || P2P_PAYMENT_METHODS[0]}
+                    {offer.paymentMethods.join(", ") || P2P_PAYMENT_METHODS[0]} · {offer.paymentTimeLimitMinutes} min
                   </p>
                 </Card>
               </Link>

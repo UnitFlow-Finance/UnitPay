@@ -1,6 +1,8 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
 import { createP2PTradeRemote, getP2POfferRemote } from "@/lib/p2p/client";
 import type { P2POffer, P2PTrade } from "@/lib/p2p/types";
@@ -13,6 +15,7 @@ import { Field, Input, Select } from "@/components/ui/Input";
 
 export default function P2POfferDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const router = useRouter();
   const { primaryWallet } = useWallet();
   const [offer, setOffer] = useState<P2POffer | null>(null);
   const [amount, setAmount] = useState("");
@@ -36,7 +39,7 @@ export default function P2POfferDetailPage({ params }: { params: Promise<{ id: s
         escrowMode,
         paymentMethod: offer.paymentMethods[0],
       });
-      setMessage(`Trade ${trade.id.slice(0, 8)} locked. Follow payment instructions.`);
+      router.push(`/p2p/trades/${trade.id}`);
     } catch (err) {
       setMessage((err as Error).message ?? String(err));
     }
@@ -76,8 +79,16 @@ export default function P2POfferDetailPage({ params }: { params: Promise<{ id: s
           <Info label="Limit" value={`${offer.minAmount}-${offer.maxAmount} ${offer.asset}`} />
           <Info label="Payment" value={offer.paymentMethods.join(", ")} />
           <Info label="Status" value={offer.status} />
+          <Info label="Deadline" value={`${offer.paymentTimeLimitMinutes ?? 15} min`} />
+          <Info label="KYC" value={offer.kycRequired ? "Required" : "Not required"} />
         </div>
+        {offer.merchantId && (
+          <Link href={`/p2p/merchants/${offer.merchantId}`} className="text-sm text-accent hover:text-primary">
+            View merchant profile
+          </Link>
+        )}
         <p className="text-sm text-muted whitespace-pre-wrap">{offer.terms}</p>
+        <p className="text-xs text-subtle whitespace-pre-wrap">{offer.instructions}</p>
       </Card>
       <Card className="space-y-3">
         <Field label={`Amount (${offer.asset})`}>

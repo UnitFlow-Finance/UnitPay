@@ -1,6 +1,6 @@
 "use client";
 
-import type { VirtualCard, VirtualCardStatus } from "@/lib/cards/types";
+import type { VirtualCard, VirtualCardStatus, VirtualCardTransaction } from "@/lib/cards/types";
 
 async function parseJson<T>(response: Response): Promise<T> {
   const body = await response.json().catch(() => ({}));
@@ -29,6 +29,17 @@ export async function createVirtualCardRemote(input: Record<string, unknown>): P
   return card;
 }
 
+export async function getVirtualCardRemote(id: string): Promise<{
+  card: VirtualCard;
+  transactions: VirtualCardTransaction[];
+} | null> {
+  const { card, transactions } = await parseJson<{
+    card: VirtualCard | null;
+    transactions?: VirtualCardTransaction[];
+  }>(await fetch(`/api/cards/${id}`, { cache: "no-store" }));
+  return card ? { card, transactions: transactions ?? [] } : null;
+}
+
 export async function updateVirtualCardStatusRemote(
   id: string,
   status: VirtualCardStatus,
@@ -41,4 +52,38 @@ export async function updateVirtualCardStatusRemote(
     }),
   );
   return card;
+}
+
+export async function fundVirtualCardRemote(id: string, amount: string): Promise<{
+  card: VirtualCard;
+  transaction: VirtualCardTransaction;
+}> {
+  return parseJson<{ card: VirtualCard; transaction: VirtualCardTransaction }>(
+    await fetch(`/api/cards/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "fund", amount }),
+    }),
+  );
+}
+
+export async function withdrawVirtualCardRemote(id: string, amount: string): Promise<{
+  card: VirtualCard;
+  transaction: VirtualCardTransaction;
+}> {
+  return parseJson<{ card: VirtualCard; transaction: VirtualCardTransaction }>(
+    await fetch(`/api/cards/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "withdraw", amount }),
+    }),
+  );
+}
+
+export async function deleteVirtualCardRemote(id: string): Promise<void> {
+  await parseJson<{ ok: boolean }>(
+    await fetch(`/api/cards/${id}`, {
+      method: "DELETE",
+    }),
+  );
 }
