@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { listPodsRemote } from "@/lib/pods/client";
 import { migrateLegacyPods } from "@/lib/pods/migrateLegacy";
 import type { EscrowPodWithStats } from "@/lib/pods/types";
-import { Logo } from "@/components/Logo";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
 import { LinkButton } from "@/components/ui/Button";
 
@@ -32,15 +32,17 @@ export default function PublicPodsPage() {
 
   return (
     <main className="min-h-full px-4 sm:px-6 py-6 sm:py-8 max-w-md md:max-w-2xl mx-auto w-full space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <Logo size={32} />
-        <LinkButton href="/wallet/pods/new" size="md">
+      <PageHeader
+        title="Public Escrow Pods"
+        backHref="/wallet/pods"
+        action={(
+          <LinkButton href="/wallet/pods/new" size="md">
           Create Pod
-        </LinkButton>
-      </div>
+          </LinkButton>
+        )}
+      />
 
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Public Escrow Pods</h1>
         <p className="text-sm text-muted mt-1">
           Discover collaborative funding pods and contribute from a UnitPay wallet.
         </p>

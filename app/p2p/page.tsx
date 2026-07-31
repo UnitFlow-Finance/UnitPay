@@ -2,14 +2,15 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { BriefcaseBusiness, History, RefreshCw, ShieldCheck } from "lucide-react";
-import { listP2POffersRemote, listP2PTradesRemote } from "@/lib/p2p/client";
+import { BriefcaseBusiness, CircleUserRound, History, RefreshCw, ShieldCheck } from "lucide-react";
+import { listP2PMerchantsRemote, listP2POffersRemote, listP2PTradesRemote } from "@/lib/p2p/client";
 import {
   P2P_ASSETS,
   P2P_FIAT_CURRENCIES,
   P2P_PAYMENT_METHODS,
   customerActionLabel,
   offerSideForCustomerAction,
+  type P2PMerchantProfile,
   type P2POffer,
   type P2POfferSide,
   type P2PTrade,
@@ -18,14 +19,18 @@ import { useWallet } from "@/lib/useWallet";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
 import { LinkButton } from "@/components/ui/Button";
-import { Field, Select } from "@/components/ui/Input";
+import { Field, Input, Select } from "@/components/ui/Input";
 
 export default function P2PMarketplacePage() {
   const { primaryWallet } = useWallet();
   const [side, setSide] = useState<P2POfferSide | "all">("all");
   const [asset, setAsset] = useState("USDC");
   const [fiatCurrency, setFiatCurrency] = useState("USD");
+  const [amount, setAmount] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("all");
+  const [sort, setSort] = useState("best");
   const [offers, setOffers] = useState<P2POffer[]>([]);
+  const [merchants, setMerchants] = useState<P2PMerchantProfile[]>([]);
   const [trades, setTrades] = useState<P2PTrade[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -43,6 +48,7 @@ export default function P2PMarketplacePage() {
     setError(null);
     try {
       setOffers(await listP2POffersRemote(filters));
+      setMerchants(await listP2PMerchantsRemote());
       if (primaryWallet?.id) {
         setTrades(await listP2PTradesRemote(primaryWallet.id));
       }
@@ -58,6 +64,38 @@ export default function P2PMarketplacePage() {
     return () => window.clearTimeout(timeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters, primaryWallet?.id]);
+
+  const merchantById = useMemo(() => {
+    return new Map(merchants.map((merchant) => [merchant.id, merchant]));
+  }, [merchants]);
+
+  const visibleOffers = useMemo(() => {
+    const requestedAmount = Number(amount);
+    const hasAmount = amount.trim() !== "" && !Number.isNaN(requestedAmount) && requestedAmount > 0;
+    const filtered = offers
+      .filter((offer) => paymentMethod === "all" || offer.paymentMethods.includes(paymentMethod))
+      .filter((offer) =>
+        hasAmount
+          ? requestedAmount >= Number(offer.minAmount) &&
+            requestedAmount <= Number(offer.maxAmount) &&
+            requestedAmount <= Number(offer.availableAmount)
+          : true,
+      );
+    return [...filtered].sort((a, b) => {
+      const merchantA = a.merchantId ? merchantById.get(a.merchantId) : undefined;
+      const merchantB = b.merchantId ? merchantById.get(b.merchantId) : undefined;
+      if (sort === "price-low") return Number(a.price) - Number(b.price);
+      if (sort === "price-high") return Number(b.price) - Number(a.price);
+      if (sort === "available") return Number(b.availableAmount) - Number(a.availableAmount);
+      if (sort === "rating") return (merchantB?.rating ?? 0) - (merchantA?.rating ?? 0);
+      const score = (offer: P2POffer, merchant?: P2PMerchantProfile) =>
+        (merchant?.online ? 20 : 0) +
+        (merchant?.completionRate ?? 0) * 0.4 +
+        (merchant?.rating ?? 0) * 8 +
+        Number(offer.availableAmount) * 0.01;
+      return score(b, merchantB) - score(a, merchantA);
+    });
+  }, [amount, merchantById, offers, paymentMethod, sort]);
 
   return (
     <main className="px-4 sm:px-6 lg:px-8 py-6 sm:py-8 max-w-md md:max-w-5xl mx-auto w-full space-y-6">
@@ -98,6 +136,26 @@ export default function P2PMarketplacePage() {
               ))}
             </Select>
           </Field>
+          <Field label="Amount">
+            <Input value={amount} onChange={(event) => setAmount(event.target.value)} inputMode="decimal" placeholder="Trade amount" />
+          </Field>
+          <Field label="Payment">
+            <Select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)}>
+              <option value="all">All methods</option>
+              {P2P_PAYMENT_METHODS.map((method) => (
+                <option key={method}>{method}</option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Sort">
+            <Select value={sort} onChange={(event) => setSort(event.target.value)}>
+              <option value="best">Best match</option>
+              <option value="price-low">Lowest price</option>
+              <option value="price-high">Highest price</option>
+              <option value="available">Most available</option>
+              <option value="rating">Highest rated</option>
+            </Select>
+          </Field>
           <LinkButton href="/p2p/offers/new" fullWidth>
             Create offer
           </LinkButton>
@@ -129,30 +187,45 @@ export default function P2PMarketplacePage() {
             </button>
           </div>
           {error && <p className="text-error text-sm">{error}</p>}
-          {offers.length === 0 ? (
+          {visibleOffers.length === 0 ? (
             <Card className="text-sm text-muted">No matching offers yet.</Card>
           ) : (
-            offers.map((offer) => (
-              <Link key={offer.id} href={`/p2p/offers/${offer.id}`}>
-                <Card className="space-y-2 hover:border-primary/40 transition-colors">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="font-medium">
-                      {customerActionLabel(offer.side)} {offer.asset}
+            visibleOffers.map((offer) => {
+              const merchant = offer.merchantId ? merchantById.get(offer.merchantId) : undefined;
+              return (
+                <Link key={offer.id} href={`/p2p/offers/${offer.id}`}>
+                  <Card className="space-y-3 hover:border-primary/40 transition-colors">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <CircleUserRound className="w-5 h-5 text-primary shrink-0" />
+                          <p className="font-medium truncate">{merchant?.displayName ?? "UnitPay Merchant"}</p>
+                          <span className={`w-2 h-2 rounded-full ${merchant?.online !== false ? "bg-success" : "bg-muted"}`} />
+                          <span className="text-xs text-muted">{merchant?.online !== false ? "Online" : "Offline"}</span>
+                        </div>
+                        <p className="text-xs text-muted mt-1">
+                          {merchant?.completionRate ?? 100}% completion · {merchant?.rating ?? 5}/5 rating
+                        </p>
+                      </div>
+                      <span className="text-sm font-semibold text-right">
+                        {offer.price} {offer.fiatCurrency}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="font-medium">{customerActionLabel(offer.side)} {offer.asset}</p>
+                      <p className="text-xs text-muted">{offer.paymentTimeLimitMinutes} min</p>
+                    </div>
+                    <p className="text-xs text-muted">
+                      Limit {offer.minAmount}-{offer.maxAmount} {offer.asset} · Available{" "}
+                      {offer.availableAmount} {offer.asset}
                     </p>
-                    <span className="text-sm font-semibold">
-                      {offer.price} {offer.fiatCurrency}
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted">
-                    Limit {offer.minAmount}-{offer.maxAmount} {offer.asset} · Available{" "}
-                    {offer.availableAmount} {offer.asset}
-                  </p>
-                  <p className="text-xs text-subtle">
-                    {offer.paymentMethods.join(", ") || P2P_PAYMENT_METHODS[0]} · {offer.paymentTimeLimitMinutes} min
-                  </p>
-                </Card>
-              </Link>
-            ))
+                    <p className="text-xs text-subtle">
+                      {offer.paymentMethods.join(", ") || P2P_PAYMENT_METHODS[0]}
+                    </p>
+                  </Card>
+                </Link>
+              );
+            })
           )}
         </section>
       </div>

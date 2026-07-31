@@ -6,6 +6,7 @@ import { PauseCircle, PlayCircle, Save, Star } from "lucide-react";
 import { apiPost } from "@/lib/api";
 import { useCircleSdk } from "@/lib/circle/sdkContext";
 import {
+  deleteP2POfferRemote,
   listP2POffersRemote,
   upsertP2PMerchantRemote,
   updateP2POfferRemote,
@@ -16,7 +17,7 @@ import { useWallet } from "@/lib/useWallet";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
 import { Button, LinkButton } from "@/components/ui/Button";
-import { Field, Input, Textarea } from "@/components/ui/Input";
+import { Field, Input, Select, Textarea } from "@/components/ui/Input";
 
 export default function P2PMerchantDashboardPage() {
   const { primaryWallet } = useWallet();
@@ -27,6 +28,8 @@ export default function P2PMerchantDashboardPage() {
   const [terms, setTerms] = useState("Fast release after fiat payment is confirmed.");
   const [message, setMessage] = useState<string | null>(null);
   const [liquidityAmounts, setLiquidityAmounts] = useState<Record<string, string>>({});
+  const [editingOfferId, setEditingOfferId] = useState<string | null>(null);
+  const [drafts, setDrafts] = useState<Record<string, OfferDraft>>({});
 
   async function refresh() {
     if (!primaryWallet) return;
@@ -64,7 +67,10 @@ export default function P2PMerchantDashboardPage() {
 
   async function updateOfferOnChain(
     offer: P2POffer,
-    overrides: Partial<Pick<P2POffer, "availableAmount" | "maxAmount" | "status">> & {
+    overrides: Partial<Pick<
+      P2POffer,
+      "availableAmount" | "maxAmount" | "minAmount" | "price" | "paymentMethods" | "terms" | "instructions" | "status"
+    >> & {
       additionalAmount?: string;
     },
   ) {
@@ -73,6 +79,11 @@ export default function P2PMerchantDashboardPage() {
     if (!userToken) throw new Error("Session expired — please reload.");
     const nextAvailable = overrides.availableAmount ?? offer.availableAmount;
     const nextMax = overrides.maxAmount ?? offer.maxAmount;
+    const nextMin = overrides.minAmount ?? offer.minAmount;
+    const nextPrice = overrides.price ?? offer.price;
+    const nextPaymentMethods = overrides.paymentMethods ?? offer.paymentMethods;
+    const nextTerms = overrides.terms ?? offer.terms;
+    const nextInstructions = overrides.instructions ?? offer.instructions;
     const metadataHash = p2pMetadataHash({
       offerId: offer.id,
       onChainOfferId: offer.onChainOfferId,
@@ -80,13 +91,13 @@ export default function P2PMerchantDashboardPage() {
       side: offer.side,
       asset: offer.asset,
       fiatCurrency: offer.fiatCurrency,
-      price: offer.price,
-      minAmount: offer.minAmount,
+      price: nextPrice,
+      minAmount: nextMin,
       maxAmount: nextMax,
       availableAmount: nextAvailable,
-      paymentMethods: offer.paymentMethods,
-      terms: offer.terms,
-      instructions: offer.instructions,
+      paymentMethods: nextPaymentMethods,
+      terms: nextTerms,
+      instructions: nextInstructions,
       status: overrides.status ?? offer.status,
     });
     const additionalAmount = overrides.additionalAmount ?? "0";
@@ -109,8 +120,8 @@ export default function P2PMerchantDashboardPage() {
       chainKey: offer.chainKey ?? "arcTestnet",
       onChainOfferId: offer.onChainOfferId,
       side: offer.side,
-      price: offer.price,
-      minAmount: offer.minAmount,
+      price: nextPrice,
+      minAmount: nextMin,
       maxAmount: nextMax,
       availableAmount: nextAvailable,
       additionalAmount,
@@ -154,6 +165,75 @@ export default function P2PMerchantDashboardPage() {
     }
   }
 
+  function draftFor(offer: P2POffer): OfferDraft {
+    return drafts[offer.id] ?? {
+      price: offer.price,
+      minAmount: offer.minAmount,
+      maxAmount: offer.maxAmount,
+      availableAmount: offer.availableAmount,
+      paymentMethod: offer.paymentMethods[0] ?? P2P_PAYMENT_METHODS[0],
+      terms: offer.terms,
+      instructions: offer.instructions ?? "",
+    };
+  }
+
+  function updateDraft(offer: P2POffer, updates: Partial<OfferDraft>) {
+    setDrafts((previous) => ({ ...previous, [offer.id]: { ...draftFor(offer), ...updates } }));
+  }
+
+  async function saveOfferEdits(offer: P2POffer) {
+    const draft = draftFor(offer);
+    const min = Number(draft.minAmount);
+    const max = Number(draft.maxAmount);
+    const available = Number(draft.availableAmount);
+    const price = Number(draft.price);
+    if ([min, max, available, price].some((value) => Number.isNaN(value) || value <= 0)) {
+      setMessage("Enter valid positive price, limits, and availability.");
+      return;
+    }
+    if (min > max) {
+      setMessage("Minimum amount cannot exceed maximum amount.");
+      return;
+    }
+    if (available < min) {
+      setMessage("Available amount must be at least the minimum trade amount.");
+      return;
+    }
+    try {
+      const previousAvailable = Number(offer.availableAmount);
+      const additionalAmount =
+        offer.side === "sell" && available > previousAvailable
+          ? (available - previousAvailable).toString()
+          : "0";
+      await updateOfferOnChain(offer, {
+        price: draft.price,
+        minAmount: draft.minAmount,
+        maxAmount: draft.maxAmount,
+        availableAmount: draft.availableAmount,
+        paymentMethods: [draft.paymentMethod],
+        terms: draft.terms,
+        instructions: draft.instructions,
+        status: "Active",
+        additionalAmount,
+      });
+      const updated = await updateP2POfferRemote(offer.id, {
+        price: draft.price,
+        minAmount: draft.minAmount,
+        maxAmount: draft.maxAmount,
+        availableAmount: draft.availableAmount,
+        paymentMethods: [draft.paymentMethod],
+        terms: draft.terms,
+        instructions: draft.instructions,
+        status: "Active",
+      });
+      setOffers((previous) => previous.map((entry) => (entry.id === offer.id ? updated : entry)));
+      setEditingOfferId(null);
+      setMessage("Offer updated.");
+    } catch (error) {
+      setMessage((error as Error).message ?? String(error));
+    }
+  }
+
   async function closeOffer(offer: P2POffer) {
     if (!primaryWallet) return;
     const userToken = window.localStorage.getItem("unitpay.userToken");
@@ -161,7 +241,7 @@ export default function P2PMerchantDashboardPage() {
       setMessage("Session expired — please reload.");
       return;
     }
-    if (offer.onChainOfferId) {
+    if (offer.onChainOfferId && offer.status !== "Cancelled") {
       const { challengeId } = await apiPost<{ challengeId: string }>("/api/p2p/onchain", {
         action: "cancel-offer",
         userToken,
@@ -174,6 +254,17 @@ export default function P2PMerchantDashboardPage() {
     const updated = await updateP2POfferRemote(offer.id, { status: "Cancelled", availableAmount: "0" });
     setOffers((previous) => previous.map((entry) => (entry.id === offer.id ? updated : entry)));
     setMessage("Offer closed and unused on-chain liquidity returned.");
+  }
+
+  async function deleteOffer(offer: P2POffer) {
+    try {
+      await closeOffer(offer);
+      await deleteP2POfferRemote(offer.id);
+      setOffers((previous) => previous.filter((entry) => entry.id !== offer.id));
+      setMessage("Offer deleted.");
+    } catch (error) {
+      setMessage((error as Error).message ?? String(error));
+    }
   }
 
   return (
@@ -221,6 +312,39 @@ export default function P2PMerchantDashboardPage() {
                   <Info label="Available" value={offer.availableAmount} />
                   <Info label="Limit" value={`${offer.minAmount}-${offer.maxAmount}`} />
                 </div>
+                {editingOfferId === offer.id && (
+                  <div className="space-y-3 border-t border-border pt-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      <Field label="Price">
+                        <Input value={draftFor(offer).price} onChange={(event) => updateDraft(offer, { price: event.target.value })} inputMode="decimal" />
+                      </Field>
+                      <Field label="Min">
+                        <Input value={draftFor(offer).minAmount} onChange={(event) => updateDraft(offer, { minAmount: event.target.value })} inputMode="decimal" />
+                      </Field>
+                      <Field label="Max">
+                        <Input value={draftFor(offer).maxAmount} onChange={(event) => updateDraft(offer, { maxAmount: event.target.value })} inputMode="decimal" />
+                      </Field>
+                      <Field label="Available">
+                        <Input value={draftFor(offer).availableAmount} onChange={(event) => updateDraft(offer, { availableAmount: event.target.value })} inputMode="decimal" />
+                      </Field>
+                    </div>
+                    <Field label="Payment method">
+                      <Select value={draftFor(offer).paymentMethod} onChange={(event) => updateDraft(offer, { paymentMethod: event.target.value })}>
+                        {P2P_PAYMENT_METHODS.map((method) => <option key={method}>{method}</option>)}
+                      </Select>
+                    </Field>
+                    <Field label="Instructions">
+                      <Textarea value={draftFor(offer).instructions} onChange={(event) => updateDraft(offer, { instructions: event.target.value })} rows={2} />
+                    </Field>
+                    <Field label="Terms">
+                      <Textarea value={draftFor(offer).terms} onChange={(event) => updateDraft(offer, { terms: event.target.value })} rows={2} />
+                    </Field>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button variant="secondary" onClick={() => saveOfferEdits(offer)}>Save edits</Button>
+                      <Button variant="ghost" onClick={() => setEditingOfferId(null)}>Cancel</Button>
+                    </div>
+                  </div>
+                )}
                 {offer.side === "sell" ? (
                   <div className="grid sm:grid-cols-[1fr_auto] gap-2">
                     <Input
@@ -247,8 +371,14 @@ export default function P2PMerchantDashboardPage() {
                   {offer.status === "Paused" ? <PlayCircle className="w-4 h-4" /> : <PauseCircle className="w-4 h-4" />}
                   {offer.status === "Paused" ? "Enable offer" : "Disable offer"}
                 </Button>
+                <Button variant="secondary" fullWidth onClick={() => setEditingOfferId(offer.id)}>
+                  Modify offer
+                </Button>
                 <Button variant="ghost" fullWidth onClick={() => closeOffer(offer)}>
                   Close and return liquidity
+                </Button>
+                <Button variant="ghost" fullWidth onClick={() => deleteOffer(offer)}>
+                  Delete offer
                 </Button>
               </Card>
             ))
@@ -260,6 +390,16 @@ export default function P2PMerchantDashboardPage() {
       </div>
     </main>
   );
+}
+
+interface OfferDraft {
+  price: string;
+  minAmount: string;
+  maxAmount: string;
+  availableAmount: string;
+  paymentMethod: string;
+  terms: string;
+  instructions: string;
 }
 
 function Info({ label, value }: { label: string; value: string }) {
