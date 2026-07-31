@@ -1,6 +1,6 @@
 "use client";
 
-import type { P2PMerchantProfile, P2POffer, P2PTrade } from "@/lib/p2p/types";
+import type { P2PCustomerPayoutDetail, P2PMerchantProfile, P2POffer, P2PTrade } from "@/lib/p2p/types";
 
 async function parseJson<T>(response: Response): Promise<T> {
   const body = await response.json().catch(() => ({}));
@@ -108,4 +108,54 @@ export async function upsertP2PMerchantRemote(input: Record<string, unknown>): P
     }),
   );
   return merchant;
+}
+
+export async function listP2PPayoutDetailsRemote(
+  ownerCircleWalletId: string,
+  method?: string,
+): Promise<P2PCustomerPayoutDetail[]> {
+  const params = new URLSearchParams({ ownerCircleWalletId });
+  if (method) params.set("method", method);
+  const { details } = await parseJson<{ details: P2PCustomerPayoutDetail[] }>(
+    await fetch(`/api/p2p/payout-details?${params.toString()}`, { cache: "no-store" }),
+  );
+  return details;
+}
+
+export async function createP2PPayoutDetailRemote(
+  input: Record<string, unknown>,
+): Promise<P2PCustomerPayoutDetail> {
+  const { detail } = await parseJson<{ detail: P2PCustomerPayoutDetail }>(
+    await fetch("/api/p2p/payout-details", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    }),
+  );
+  return detail;
+}
+
+export async function updateP2PPayoutDetailRemote(
+  id: string,
+  input: Record<string, unknown>,
+): Promise<P2PCustomerPayoutDetail> {
+  const { detail } = await parseJson<{ detail: P2PCustomerPayoutDetail }>(
+    await fetch(`/api/p2p/payout-details/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    }),
+  );
+  return detail;
+}
+
+export async function deleteP2PPayoutDetailRemote(
+  id: string,
+  ownerCircleWalletId: string,
+): Promise<void> {
+  await parseJson<{ ok: boolean }>(
+    await fetch(`/api/p2p/payout-details/${id}?ownerCircleWalletId=${encodeURIComponent(ownerCircleWalletId)}`, {
+      method: "DELETE",
+    }),
+  );
 }

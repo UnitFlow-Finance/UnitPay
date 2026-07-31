@@ -77,6 +77,13 @@ export interface P2PPaymentDetail {
   updatedAt?: string;
 }
 
+export interface P2PCustomerPayoutDetail extends P2PPaymentDetail {
+  ownerCircleWalletId: string;
+  isDefault?: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface P2PTradeEvidence {
   id: string;
   submittedByCircleWalletId: string;

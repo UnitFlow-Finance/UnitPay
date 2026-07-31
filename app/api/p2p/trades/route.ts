@@ -20,6 +20,8 @@ export async function POST(request: Request) {
           ? body.escrowMode
           : "automatic",
       paymentMethod: String(body.paymentMethod || "Bank Transfer"),
+      customerPaymentDetailId:
+        body.customerPaymentDetailId !== undefined ? String(body.customerPaymentDetailId) : undefined,
       customerPaymentDetails: body.customerPaymentDetails
         ? {
             id: String(body.customerPaymentDetails.id || crypto.randomUUID()),

@@ -6,16 +6,16 @@ import { useRouter } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
 import { apiPost } from "@/lib/api";
 import { useCircleSdk } from "@/lib/circle/sdkContext";
-import { createP2PTradeRemote, getP2POfferRemote } from "@/lib/p2p/client";
+import { createP2PTradeRemote, getP2POfferRemote, listP2PPayoutDetailsRemote } from "@/lib/p2p/client";
 import { waitForP2PTradeId } from "@/lib/p2p/contract";
-import { customerActionLabel, merchantActionLabel, type P2POffer, type P2PTrade } from "@/lib/p2p/types";
+import { customerActionLabel, merchantActionLabel, type P2PCustomerPayoutDetail, type P2POffer, type P2PTrade } from "@/lib/p2p/types";
 import { encodeUnitPayQr } from "@/lib/platform/qr";
 import { usdcToBaseUnits } from "@/lib/units";
 import { useWallet } from "@/lib/useWallet";
 import { walletForChainKey } from "@/lib/wallet/selectors";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
+import { Button, LinkButton } from "@/components/ui/Button";
 import { Field, Input, Select } from "@/components/ui/Input";
 
 export default function P2POfferDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -24,14 +24,10 @@ export default function P2POfferDetailPage({ params }: { params: Promise<{ id: s
   const { wallets, primaryWallet } = useWallet();
   const { executeChallenge } = useCircleSdk();
   const [offer, setOffer] = useState<P2POffer | null>(null);
+  const [payoutDetails, setPayoutDetails] = useState<P2PCustomerPayoutDetail[]>([]);
+  const [selectedPayoutDetailId, setSelectedPayoutDetailId] = useState("");
   const [amount, setAmount] = useState("");
   const [escrowMode, setEscrowMode] = useState<P2PTrade["escrowMode"]>("automatic");
-  const [customerPaymentLabel, setCustomerPaymentLabel] = useState("My payout details");
-  const [customerRecipientName, setCustomerRecipientName] = useState("");
-  const [customerAccountIdentifier, setCustomerAccountIdentifier] = useState("");
-  const [customerInstitutionName, setCustomerInstitutionName] = useState("");
-  const [customerReferenceNote, setCustomerReferenceNote] = useState("");
-  const [customerPaymentInstructions, setCustomerPaymentInstructions] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const arcWallet = walletForChainKey(wallets, "arcTestnet");
 
@@ -41,6 +37,20 @@ export default function P2POfferDetailPage({ params }: { params: Promise<{ id: s
     }, 0);
     return () => window.clearTimeout(timeout);
   }, [id]);
+
+  useEffect(() => {
+    if (!primaryWallet?.id || !offer || offer.side !== "buy") return;
+    const timeout = window.setTimeout(async () => {
+      const details = await listP2PPayoutDetailsRemote(primaryWallet.id);
+      const matching = details.filter((detail) => offer.paymentMethods.includes(detail.method));
+      setPayoutDetails(matching);
+      const selected = matching.find((detail) => detail.isDefault) ?? matching[0];
+      setSelectedPayoutDetailId((current) =>
+        current && matching.some((detail) => detail.id === current) ? current : selected?.id ?? "",
+      );
+    }, 0);
+    return () => window.clearTimeout(timeout);
+  }, [offer, primaryWallet?.id]);
 
   async function startTrade() {
     if (!primaryWallet || !offer) return;
@@ -59,8 +69,9 @@ export default function P2POfferDetailPage({ params }: { params: Promise<{ id: s
         throw new Error("This offer is not active.");
       }
       const customerSellsToMerchant = offer.side === "buy";
-      if (customerSellsToMerchant && !customerAccountIdentifier.trim()) {
-        throw new Error("Add your payout account details before selling to this merchant.");
+      const selectedPayoutDetail = payoutDetails.find((detail) => detail.id === selectedPayoutDetailId);
+      if (customerSellsToMerchant && !selectedPayoutDetail) {
+        throw new Error(`Add a payout detail for ${offer.paymentMethods.join(" or ")} before selling to this merchant.`);
       }
       if (!arcWallet) throw new Error("Create an Arc Testnet wallet before starting this trade.");
       if (!offer.onChainOfferId) throw new Error("This offer is missing its on-chain offer id.");
@@ -117,19 +128,8 @@ export default function P2POfferDetailPage({ params }: { params: Promise<{ id: s
         amount,
         onChainTradeId: onChainTradeId.toString(),
         escrowMode,
-        paymentMethod: offer.paymentMethods[0],
-        customerPaymentDetails: customerSellsToMerchant
-          ? {
-              id: crypto.randomUUID(),
-              method: offer.paymentMethods[0],
-              label: customerPaymentLabel,
-              recipientName: customerRecipientName,
-              accountIdentifier: customerAccountIdentifier,
-              institutionName: customerInstitutionName,
-              referenceNote: customerReferenceNote,
-              instructions: customerPaymentInstructions,
-            }
-          : undefined,
+        paymentMethod: customerSellsToMerchant ? selectedPayoutDetail?.method : offer.paymentMethods[0],
+        customerPaymentDetailId: customerSellsToMerchant ? selectedPayoutDetail?.id : undefined,
       });
       router.push(`/p2p/trades/${trade.id}`);
     } catch (err) {
@@ -197,33 +197,45 @@ export default function P2POfferDetailPage({ params }: { params: Promise<{ id: s
         {offer.side === "buy" && (
           <div className="space-y-3 rounded-xl border border-border p-3">
             <div>
-              <p className="text-sm font-semibold">Your payout details</p>
+              <p className="text-sm font-semibold">Payout detail for this trade</p>
               <p className="text-xs text-muted">
-                The merchant will see these after the trade starts so they can pay you.
+                UnitPay auto-selects your default payout detail that matches one of the merchant&apos;s accepted methods.
               </p>
             </div>
-            <Field label="Display label">
-              <Input value={customerPaymentLabel} onChange={(event) => setCustomerPaymentLabel(event.target.value)} />
-            </Field>
-            <div className="grid sm:grid-cols-2 gap-3">
-              <Field label="Recipient/account name">
-                <Input value={customerRecipientName} onChange={(event) => setCustomerRecipientName(event.target.value)} placeholder="Your legal or account name" />
-              </Field>
-              <Field label="Account, phone, email, or handle">
-                <Input value={customerAccountIdentifier} onChange={(event) => setCustomerAccountIdentifier(event.target.value)} placeholder="Where the merchant should pay you" />
-              </Field>
-            </div>
-            <div className="grid sm:grid-cols-2 gap-3">
-              <Field label="Institution/provider">
-                <Input value={customerInstitutionName} onChange={(event) => setCustomerInstitutionName(event.target.value)} placeholder="Bank, wallet, mobile money provider" />
-              </Field>
-              <Field label="Payment reference">
-                <Input value={customerReferenceNote} onChange={(event) => setCustomerReferenceNote(event.target.value)} placeholder="Reference you want the merchant to include" />
-              </Field>
-            </div>
-            <Field label="Extra instructions">
-              <Input value={customerPaymentInstructions} onChange={(event) => setCustomerPaymentInstructions(event.target.value)} placeholder="Optional payout instructions" />
-            </Field>
+            {payoutDetails.length === 0 ? (
+              <div className="space-y-3">
+                <p className="text-sm text-muted">
+                  No saved payout detail matches {offer.paymentMethods.join(", ")}. Add one before starting this sell trade.
+                </p>
+                <LinkButton href="/p2p/payment-methods" variant="secondary" fullWidth>
+                  Add payout detail
+                </LinkButton>
+              </div>
+            ) : (
+              <>
+                <Field label="Saved payout detail">
+                  <Select value={selectedPayoutDetailId} onChange={(event) => setSelectedPayoutDetailId(event.target.value)}>
+                    {payoutDetails.map((detail) => (
+                      <option key={detail.id} value={detail.id}>
+                        {detail.label} · {detail.method}{detail.isDefault ? " · Default" : ""}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                {payoutDetails
+                  .filter((detail) => detail.id === selectedPayoutDetailId)
+                  .map((detail) => (
+                    <div key={detail.id} className="rounded-xl border border-border bg-background p-3 text-sm space-y-1">
+                      <p className="font-medium">{detail.label}</p>
+                      <p className="text-xs text-muted">{detail.method} · {detail.accountIdentifier}</p>
+                      {detail.institutionName && <p className="text-xs text-muted">{detail.institutionName}</p>}
+                    </div>
+                  ))}
+                <Link href="/p2p/payment-methods" className="block text-center text-sm text-accent hover:text-primary">
+                  Manage payout details
+                </Link>
+              </>
+            )}
           </div>
         )}
         <Button onClick={startTrade} disabled={!primaryWallet || !amount} fullWidth>

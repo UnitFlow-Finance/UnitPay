@@ -3,6 +3,7 @@ import "server-only";
 import { readJsonFile, updateJsonFile } from "@/lib/platform/store";
 import type {
   P2PBalance,
+  P2PCustomerPayoutDetail,
   P2PMerchantProfile,
   P2POffer,
   P2PTrade,
@@ -17,10 +18,11 @@ interface P2PDatabase {
   trades: P2PTrade[];
   merchants: P2PMerchantProfile[];
   balances: P2PBalance[];
+  payoutDetails: P2PCustomerPayoutDetail[];
 }
 
 const P2P_FILE = "p2p.json";
-const emptyDb: P2PDatabase = { offers: [], trades: [], merchants: [], balances: [] };
+const emptyDb: P2PDatabase = { offers: [], trades: [], merchants: [], balances: [], payoutDetails: [] };
 
 function byNewest<T extends { createdAt: string }>(a: T, b: T): number {
   return b.createdAt.localeCompare(a.createdAt);
@@ -183,8 +185,10 @@ export async function createP2PTrade(input: {
   escrowMode: P2PTrade["escrowMode"];
   paymentMethod: string;
   customerPaymentDetails?: P2PPaymentDetail;
+  customerPaymentDetailId?: string;
 }): Promise<P2PTrade | null> {
   return updateJsonFile(P2P_FILE, emptyDb, (db) => {
+    ensureDbCollections(db);
     const offer = db.offers.find((entry) => entry.id === input.offerId);
     if (!offer || offer.status !== "Active") return null;
 
@@ -209,7 +213,7 @@ export async function createP2PTrade(input: {
       offer.side === "sell" ? offer.creatorCircleWalletId : input.takerCircleWalletId;
     const paymentDetails =
       offer.side === "buy"
-        ? input.customerPaymentDetails
+        ? customerPayoutDetailForTrade(db, input.takerCircleWalletId, input.paymentMethod, input.customerPaymentDetailId)
         : paymentDetailForMethod(offer, input.paymentMethod);
     const trade: P2PTrade = {
       id: crypto.randomUUID(),
@@ -248,6 +252,95 @@ export async function createP2PTrade(input: {
     if (Number(offer.availableAmount) <= 0) offer.status = "Filled";
     db.trades.unshift(trade);
     return trade;
+  });
+}
+
+export async function listP2PCustomerPayoutDetails(
+  ownerCircleWalletId: string,
+  method?: string,
+): Promise<P2PCustomerPayoutDetail[]> {
+  const db = await readJsonFile(P2P_FILE, emptyDb);
+  ensureDbCollections(db);
+  return db.payoutDetails
+    .map(normalizeCustomerPayoutDetail)
+    .filter((detail) => detail.ownerCircleWalletId === ownerCircleWalletId)
+    .filter((detail) => (method ? detail.method === method : true))
+    .sort((a, b) => Number(Boolean(b.isDefault)) - Number(Boolean(a.isDefault)) || b.createdAt.localeCompare(a.createdAt));
+}
+
+export async function createP2PCustomerPayoutDetail(
+  input: Omit<P2PCustomerPayoutDetail, "id" | "createdAt" | "updatedAt">,
+): Promise<P2PCustomerPayoutDetail> {
+  return updateJsonFile(P2P_FILE, emptyDb, (db) => {
+    ensureDbCollections(db);
+    const now = new Date().toISOString();
+    const ownerDetails = db.payoutDetails.filter(
+      (detail) => detail.ownerCircleWalletId === input.ownerCircleWalletId && detail.method === input.method,
+    );
+    const shouldDefault = input.isDefault ?? ownerDetails.length === 0;
+    if (shouldDefault) {
+      for (const detail of ownerDetails) detail.isDefault = false;
+    }
+    const detail: P2PCustomerPayoutDetail = {
+      ...input,
+      id: crypto.randomUUID(),
+      isDefault: shouldDefault,
+      createdAt: now,
+      updatedAt: now,
+    };
+    db.payoutDetails.unshift(detail);
+    return normalizeCustomerPayoutDetail(detail);
+  });
+}
+
+export async function updateP2PCustomerPayoutDetail(
+  id: string,
+  ownerCircleWalletId: string,
+  updates: Partial<Omit<P2PCustomerPayoutDetail, "id" | "ownerCircleWalletId" | "createdAt">>,
+): Promise<P2PCustomerPayoutDetail | null> {
+  return updateJsonFile(P2P_FILE, emptyDb, (db) => {
+    ensureDbCollections(db);
+    const detail = db.payoutDetails.find(
+      (entry) => entry.id === id && entry.ownerCircleWalletId === ownerCircleWalletId,
+    );
+    if (!detail) return null;
+    const nextMethod = updates.method ?? detail.method;
+    const shouldDefault = updates.isDefault ?? detail.isDefault;
+    Object.assign(detail, updates, { method: nextMethod, updatedAt: new Date().toISOString() });
+    if (shouldDefault) {
+      for (const entry of db.payoutDetails) {
+        if (
+          entry.ownerCircleWalletId === ownerCircleWalletId &&
+          entry.method === nextMethod &&
+          entry.id !== id
+        ) {
+          entry.isDefault = false;
+        }
+      }
+      detail.isDefault = true;
+    }
+    return normalizeCustomerPayoutDetail(detail);
+  });
+}
+
+export async function deleteP2PCustomerPayoutDetail(
+  id: string,
+  ownerCircleWalletId: string,
+): Promise<boolean> {
+  return updateJsonFile(P2P_FILE, emptyDb, (db) => {
+    ensureDbCollections(db);
+    const index = db.payoutDetails.findIndex(
+      (entry) => entry.id === id && entry.ownerCircleWalletId === ownerCircleWalletId,
+    );
+    if (index === -1) return false;
+    const [removed] = db.payoutDetails.splice(index, 1);
+    if (removed?.isDefault) {
+      const replacement = db.payoutDetails.find(
+        (entry) => entry.ownerCircleWalletId === ownerCircleWalletId && entry.method === removed.method,
+      );
+      if (replacement) replacement.isDefault = true;
+    }
+    return true;
   });
 }
 
@@ -527,6 +620,55 @@ function paymentDetailForMethod(offer: P2POffer, method: string) {
     (offer.paymentDetails ?? []).find((detail) => detail.method === method) ??
     (offer.paymentDetails ?? []).find((detail) => offer.paymentMethods.includes(detail.method))
   );
+}
+
+function customerPayoutDetailForTrade(
+  db: P2PDatabase,
+  ownerCircleWalletId: string,
+  method: string,
+  detailId?: string,
+): P2PPaymentDetail | undefined {
+  ensureDbCollections(db);
+  const matching = db.payoutDetails
+    .map(normalizeCustomerPayoutDetail)
+    .filter((detail) => detail.ownerCircleWalletId === ownerCircleWalletId && detail.method === method);
+  const selected =
+    (detailId ? matching.find((detail) => detail.id === detailId) : undefined) ??
+    matching.find((detail) => detail.isDefault) ??
+    matching[0];
+  if (!selected) {
+    throw new Error(`Add a payout detail for ${method} before selling to this merchant.`);
+  }
+  return {
+    id: selected.id,
+    method: selected.method,
+    label: selected.label,
+    recipientName: selected.recipientName,
+    accountIdentifier: selected.accountIdentifier,
+    institutionName: selected.institutionName,
+    referenceNote: selected.referenceNote,
+    instructions: selected.instructions,
+    createdAt: selected.createdAt,
+    updatedAt: selected.updatedAt,
+  };
+}
+
+function normalizeCustomerPayoutDetail(detail: P2PCustomerPayoutDetail): P2PCustomerPayoutDetail {
+  return {
+    ...detail,
+    label: detail.label || detail.method,
+    isDefault: detail.isDefault ?? false,
+    createdAt: detail.createdAt ?? new Date().toISOString(),
+    updatedAt: detail.updatedAt ?? detail.createdAt ?? new Date().toISOString(),
+  };
+}
+
+function ensureDbCollections(db: P2PDatabase): void {
+  db.offers ??= [];
+  db.trades ??= [];
+  db.merchants ??= [];
+  db.balances ??= [];
+  db.payoutDetails ??= [];
 }
 
 function normalizeMerchant(merchant: P2PMerchantProfile): P2PMerchantProfile {
