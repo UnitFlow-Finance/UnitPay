@@ -27,6 +27,7 @@ export default function P2POfferDetailPage({ params }: { params: Promise<{ id: s
   const [payoutDetails, setPayoutDetails] = useState<P2PCustomerPayoutDetail[]>([]);
   const [selectedPayoutDetailId, setSelectedPayoutDetailId] = useState("");
   const [amount, setAmount] = useState("");
+  const [amountMode, setAmountMode] = useState<"asset" | "fiat">("asset");
   const [escrowMode, setEscrowMode] = useState<P2PTrade["escrowMode"]>("automatic");
   const [message, setMessage] = useState<string | null>(null);
   const arcWallet = walletForChainKey(wallets, "arcTestnet");
@@ -55,10 +56,12 @@ export default function P2POfferDetailPage({ params }: { params: Promise<{ id: s
   async function startTrade() {
     if (!primaryWallet || !offer) return;
     try {
-      const numericAmount = Number(amount);
-      if (!amount || Number.isNaN(numericAmount) || numericAmount <= 0) {
+      const numericInputAmount = Number(amount);
+      if (!amount || Number.isNaN(numericInputAmount) || numericInputAmount <= 0) {
         throw new Error("Enter a valid trade amount.");
       }
+      const assetAmount = assetAmountForTrade(offer, amount, amountMode);
+      const numericAmount = Number(assetAmount);
       if (numericAmount < Number(offer.minAmount) || numericAmount > Number(offer.maxAmount)) {
         throw new Error(`Amount must be between ${offer.minAmount} and ${offer.maxAmount} ${offer.asset}.`);
       }
@@ -87,7 +90,7 @@ export default function P2POfferDetailPage({ params }: { params: Promise<{ id: s
             userToken,
             walletId: arcWallet.id,
             chainKey: offer.chainKey ?? "arcTestnet",
-            amount,
+            amount: assetAmount,
           },
         );
         await executeChallenge(approveChallengeId);
@@ -102,7 +105,7 @@ export default function P2POfferDetailPage({ params }: { params: Promise<{ id: s
           walletId: arcWallet.id,
           chainKey: offer.chainKey ?? "arcTestnet",
           onChainOfferId: offer.onChainOfferId,
-          amount,
+          amount: assetAmount,
           takerLocksFunds,
         },
       );
@@ -116,7 +119,7 @@ export default function P2POfferDetailPage({ params }: { params: Promise<{ id: s
         offerId: BigInt(offer.onChainOfferId),
         buyer: buyer as `0x${string}`,
         seller: seller as `0x${string}`,
-        amountBaseUnits: usdcToBaseUnits(amount),
+        amountBaseUnits: usdcToBaseUnits(assetAmount),
       });
       if (onChainTradeId === null) {
         throw new Error("Trade was submitted, but UnitPay could not find the on-chain trade event yet. Wait for the transaction to confirm, then refresh and try opening this offer again.");
@@ -125,7 +128,7 @@ export default function P2POfferDetailPage({ params }: { params: Promise<{ id: s
       const trade = await createP2PTradeRemote({
         offerId: offer.id,
         takerCircleWalletId: primaryWallet.id,
-        amount,
+        amount: assetAmount,
         onChainTradeId: onChainTradeId.toString(),
         escrowMode,
         paymentMethod: customerSellsToMerchant ? selectedPayoutDetail?.method : offer.paymentMethods[0],
@@ -152,6 +155,7 @@ export default function P2POfferDetailPage({ params }: { params: Promise<{ id: s
     objectType: "p2p-offer",
     objectId: offer.id,
   });
+  const convertedAmount = offer ? convertedAmountPreview(offer, amount, amountMode) : null;
 
   return (
     <main className="px-4 sm:px-6 py-6 sm:py-8 max-w-md md:max-w-2xl mx-auto w-full space-y-6">
@@ -184,9 +188,27 @@ export default function P2POfferDetailPage({ params }: { params: Promise<{ id: s
         <p className="text-xs text-subtle whitespace-pre-wrap">{offer.instructions}</p>
       </Card>
       <Card className="space-y-3">
-        <Field label={`Amount (${offer.asset})`}>
-          <Input value={amount} onChange={(event) => setAmount(event.target.value)} inputMode="decimal" />
-        </Field>
+        <div className="grid grid-cols-[1fr_auto] gap-2 items-end">
+          <Field label={`Amount (${amountMode === "asset" ? offer.asset : offer.fiatCurrency})`}>
+            <Input value={amount} onChange={(event) => setAmount(event.target.value)} inputMode="decimal" />
+          </Field>
+          <Select
+            aria-label="Amount currency"
+            value={amountMode}
+            onChange={(event) => setAmountMode(event.target.value as "asset" | "fiat")}
+            className="w-28"
+          >
+            <option value="asset">{offer.asset}</option>
+            <option value="fiat">{offer.fiatCurrency}</option>
+          </Select>
+        </div>
+        {convertedAmount && (
+          <p className="text-xs text-muted">
+            {amountMode === "asset"
+              ? `${amount} ${offer.asset} ≈ ${convertedAmount} ${offer.fiatCurrency}`
+              : `${amount} ${offer.fiatCurrency} ≈ ${convertedAmount} ${offer.asset}`}
+          </p>
+        )}
         <Field label="Escrow mode">
           <Select value={escrowMode} onChange={(event) => setEscrowMode(event.target.value as P2PTrade["escrowMode"])}>
             <option value="automatic">Automatic release</option>
@@ -245,6 +267,27 @@ export default function P2POfferDetailPage({ params }: { params: Promise<{ id: s
       </Card>
     </main>
   );
+}
+
+function assetAmountForTrade(offer: P2POffer, value: string, mode: "asset" | "fiat"): string {
+  const numeric = Number(value);
+  if (mode === "asset") return trimAmount(numeric);
+  return trimAmount(numeric / Number(offer.price));
+}
+
+function convertedAmountPreview(
+  offer: P2POffer,
+  value: string,
+  mode: "asset" | "fiat",
+): string | null {
+  const numeric = Number(value);
+  if (!value || Number.isNaN(numeric) || numeric <= 0 || Number(offer.price) <= 0) return null;
+  if (mode === "asset") return trimAmount(numeric * Number(offer.price));
+  return trimAmount(numeric / Number(offer.price));
+}
+
+function trimAmount(value: number): string {
+  return value.toFixed(6).replace(/\.?0+$/, "");
 }
 
 function Info({ label, value }: { label: string; value: string }) {

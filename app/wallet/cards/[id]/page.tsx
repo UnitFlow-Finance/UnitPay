@@ -43,7 +43,7 @@ export default function VirtualCardDetailPage({ params }: { params: Promise<{ id
 
   const maskedDetails = useMemo(() => {
     if (!card) return "";
-    return `${card.network} virtual card\nNickname: ${card.label}\nCard number: **** **** **** ${card.last4}\nCVV: ***\nExpiry: ${card.expiryMonth}/${card.expiryYear}\nCurrency: ${card.currency}`;
+    return `${card.network} virtual card (masked)\nNickname: ${card.label}\nCard number: **** **** **** ${card.last4}\nCVV: ***\nExpiry: ${card.expiryMonth}/${card.expiryYear}\nCurrency: ${card.currency}\nNote: Full PAN and CVV require secure card-detail authentication and are not stored in this masked view.`;
   }, [card]);
 
   async function runAction(action: () => Promise<void>, done: string) {
@@ -112,6 +112,9 @@ export default function VirtualCardDetailPage({ params }: { params: Promise<{ id
             <p className="font-semibold">AI-agent ready</p>
             <p className="text-muted">
               This virtual card can be permissioned for AI agents through UnitPay spending policies, limits, and merchant restrictions.
+            </p>
+            <p className="text-xs text-muted">
+              Card number and CVV are intentionally masked in this view; copy actions copy the same masked values shown on screen.
             </p>
           </Card>
           <Card className="space-y-3">
