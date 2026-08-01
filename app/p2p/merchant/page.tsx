@@ -7,12 +7,13 @@ import { apiPost } from "@/lib/api";
 import { useCircleSdk } from "@/lib/circle/sdkContext";
 import {
   deleteP2POfferRemote,
+  listP2PPayoutDetailsRemote,
   listP2POffersRemote,
   upsertP2PMerchantRemote,
   updateP2POfferRemote,
 } from "@/lib/p2p/client";
 import { p2pMetadataHash } from "@/lib/p2p/contract";
-import { P2P_PAYMENT_METHODS, merchantActionLabel, type P2PMerchantProfile, type P2POffer } from "@/lib/p2p/types";
+import { P2P_PAYMENT_METHODS, merchantActionLabel, type P2PCustomerPayoutDetail, type P2PMerchantProfile, type P2POffer } from "@/lib/p2p/types";
 import { useWallet } from "@/lib/useWallet";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
@@ -24,6 +25,7 @@ export default function P2PMerchantDashboardPage() {
   const { executeChallenge } = useCircleSdk();
   const [merchant, setMerchant] = useState<P2PMerchantProfile | null>(null);
   const [offers, setOffers] = useState<P2POffer[]>([]);
+  const [savedPaymentDetails, setSavedPaymentDetails] = useState<P2PCustomerPayoutDetail[]>([]);
   const [displayName, setDisplayName] = useState("UnitPay Merchant");
   const [terms, setTerms] = useState("Fast release after fiat payment is confirmed.");
   const [message, setMessage] = useState<string | null>(null);
@@ -35,6 +37,7 @@ export default function P2PMerchantDashboardPage() {
     if (!primaryWallet) return;
     const params = new URLSearchParams({ merchantId: primaryWallet.id, status: "all" });
     setOffers(await listP2POffersRemote(params));
+    setSavedPaymentDetails(await listP2PPayoutDetailsRemote(primaryWallet.id));
   }
 
   useEffect(() => {
@@ -178,6 +181,7 @@ export default function P2PMerchantDashboardPage() {
       maxAmount: offer.maxAmount,
       availableAmount: offer.availableAmount,
       paymentMethod: selectedMethod,
+      paymentDetailId: paymentDetail?.id ?? "",
       paymentDetailLabel: paymentDetail?.label ?? "Primary payment account",
       paymentRecipientName: paymentDetail?.recipientName ?? "",
       paymentAccountIdentifier: paymentDetail?.accountIdentifier ?? "",
@@ -355,12 +359,45 @@ export default function P2PMerchantDashboardPage() {
                       </Field>
                     </div>
                     <Field label="Payment method">
-                      <Select value={draftFor(offer).paymentMethod} onChange={(event) => updateDraft(offer, { paymentMethod: event.target.value })}>
+                      <Select value={draftFor(offer).paymentMethod} onChange={(event) => updateDraft(offer, { paymentMethod: event.target.value, paymentDetailId: "" })}>
                         {P2P_PAYMENT_METHODS.map((method) => <option key={method}>{method}</option>)}
                       </Select>
                     </Field>
                     <div className="space-y-3 rounded-xl border border-border p-3">
                       <p className="text-sm font-medium">Payment details customers will see</p>
+                      {savedPaymentDetails.filter((detail) => detail.method === draftFor(offer).paymentMethod).length > 0 && (
+                        <Field label="Use saved detail">
+                          <Select
+                            value={draftFor(offer).paymentDetailId}
+                            onChange={(event) => {
+                              if (!event.target.value) {
+                                updateDraft(offer, { paymentDetailId: "" });
+                                return;
+                              }
+                              const detail = savedPaymentDetails.find((entry) => entry.id === event.target.value);
+                              if (!detail) return;
+                              updateDraft(offer, {
+                                paymentDetailId: detail.id,
+                                paymentDetailLabel: detail.label,
+                                paymentRecipientName: detail.recipientName ?? "",
+                                paymentAccountIdentifier: detail.accountIdentifier ?? "",
+                                paymentInstitutionName: detail.institutionName ?? "",
+                                paymentReferenceNote: detail.referenceNote ?? "",
+                                paymentDetailInstructions: detail.instructions ?? "",
+                              });
+                            }}
+                          >
+                            <option value="">Custom detail</option>
+                            {savedPaymentDetails
+                              .filter((detail) => detail.method === draftFor(offer).paymentMethod)
+                              .map((detail) => (
+                                <option key={detail.id} value={detail.id}>
+                                  {detail.label} · {detail.accountIdentifier}{detail.isDefault ? " · Default" : ""}
+                                </option>
+                              ))}
+                          </Select>
+                        </Field>
+                      )}
                       <Field label="Display label">
                         <Input value={draftFor(offer).paymentDetailLabel} onChange={(event) => updateDraft(offer, { paymentDetailLabel: event.target.value })} />
                       </Field>
@@ -449,6 +486,7 @@ interface OfferDraft {
   maxAmount: string;
   availableAmount: string;
   paymentMethod: string;
+  paymentDetailId: string;
   paymentDetailLabel: string;
   paymentRecipientName: string;
   paymentAccountIdentifier: string;

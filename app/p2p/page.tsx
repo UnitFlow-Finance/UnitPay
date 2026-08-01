@@ -114,7 +114,7 @@ export default function P2PMarketplacePage() {
           <History className="w-4 h-4" /> Trade history
         </LinkButton>
         <LinkButton href="/p2p/payment-methods" variant="secondary" fullWidth>
-          <ShieldCheck className="w-4 h-4" /> Payment methods
+          <ShieldCheck className="w-4 h-4" /> Payout details
         </LinkButton>
       </div>
 
@@ -200,7 +200,7 @@ export default function P2PMarketplacePage() {
           )}
         </Card>
 
-        <section className="md:col-span-3 space-y-3">
+        <section className="md:col-span-3 space-y-3 min-w-0">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-sm font-medium text-muted uppercase tracking-wide">Offers</h2>
             <button
@@ -218,35 +218,55 @@ export default function P2PMarketplacePage() {
             visibleOffers.map((offer) => {
               const merchant = offer.merchantId ? merchantById.get(offer.merchantId) : undefined;
               return (
-                <Link key={offer.id} href={`/p2p/offers/${offer.id}`}>
-                  <Card className="space-y-3 hover:border-primary/40 transition-colors">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <CircleUserRound className="w-5 h-5 text-primary shrink-0" />
-                          <p className="font-medium truncate">{merchant?.displayName ?? "UnitPay Merchant"}</p>
-                          <span className={`w-2 h-2 rounded-full ${merchant?.online !== false ? "bg-success" : "bg-muted"}`} />
-                          <span className="text-xs text-muted">{merchant?.online !== false ? "Online" : "Offline"}</span>
+                <Link key={offer.id} href={`/p2p/offers/${offer.id}`} className="block">
+                  <Card className="space-y-4 hover:border-primary/40 transition-colors">
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                      <div className="min-w-0 space-y-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="w-9 h-9 rounded-xl bg-primary-light flex items-center justify-center shrink-0">
+                            <CircleUserRound className="w-5 h-5 text-primary" />
+                          </span>
+                          <div className="min-w-0">
+                            <p className="font-medium truncate">{merchant?.displayName ?? "UnitPay Merchant"}</p>
+                            <p className="text-xs text-muted">
+                              {merchant?.completionRate ?? 100}% completion · {merchant?.rating ?? 5}/5 rating
+                            </p>
+                          </div>
+                          <span className={`ml-auto sm:ml-1 w-2.5 h-2.5 rounded-full shrink-0 ${merchant?.online !== false ? "bg-success" : "bg-muted"}`} />
                         </div>
-                        <p className="text-xs text-muted mt-1">
-                          {merchant?.completionRate ?? 100}% completion · {merchant?.rating ?? 5}/5 rating
+                        <div className="flex flex-wrap gap-1.5">
+                          {(offer.paymentMethods.length ? offer.paymentMethods : [P2P_PAYMENT_METHODS[0]]).map((method) => (
+                            <span key={method} className="rounded-full border border-border bg-background px-2.5 py-1 text-[11px] text-muted">
+                              {method}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="sm:text-right">
+                        <p className="text-xs text-muted">Price</p>
+                        <p className="text-xl sm:text-2xl font-semibold text-foreground">
+                          {offer.price} {offer.fiatCurrency}
                         </p>
                       </div>
-                      <span className="text-sm font-semibold text-right">
-                        {offer.price} {offer.fiatCurrency}
-                      </span>
                     </div>
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="font-medium">{customerActionLabel(offer.side)} {offer.asset}</p>
-                      <p className="text-xs text-muted">{offer.paymentTimeLimitMinutes} min</p>
+                    <div className="grid grid-cols-3 gap-2 rounded-xl border border-border bg-background p-3 text-sm">
+                      <div>
+                        <p className="text-xs text-muted">Action</p>
+                        <p className="font-semibold">{customerActionLabel(offer.side)} {offer.asset}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted">Available</p>
+                        <p className="font-semibold">{offer.availableAmount}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted">Window</p>
+                        <p className="font-semibold">{offer.paymentTimeLimitMinutes} min</p>
+                      </div>
                     </div>
-                    <p className="text-xs text-muted">
-                      Limit {offer.minAmount}-{offer.maxAmount} {offer.asset} · Available{" "}
-                      {offer.availableAmount} {offer.asset}
-                    </p>
-                    <p className="text-xs text-subtle">
-                      {offer.paymentMethods.join(", ") || P2P_PAYMENT_METHODS[0]}
-                    </p>
+                    <div className="flex items-center justify-between gap-3 text-xs text-muted">
+                      <span>Limit {offer.minAmount}-{offer.maxAmount} {offer.asset}</span>
+                      <span className="font-semibold text-primary">View offer</span>
+                    </div>
                   </Card>
                 </Link>
               );

@@ -2,7 +2,7 @@
 
 import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, CheckCircle2, Clock, FileText, LockKeyhole, MessageCircle, Send, ShieldCheck } from "lucide-react";
+import { CheckCircle2, Clock, LockKeyhole, MessageCircle, Send, ShieldCheck } from "lucide-react";
 import { apiPost } from "@/lib/api";
 import { useCircleSdk } from "@/lib/circle/sdkContext";
 import { decryptP2PChatMessage, encryptP2PChatMessage } from "@/lib/p2p/chatCrypto";
@@ -20,8 +20,6 @@ export default function P2PTradeWindowPage({ params }: { params: Promise<{ id: s
   const { executeChallenge } = useCircleSdk();
   const [trade, setTrade] = useState<P2PTrade | null>(null);
   const [proof, setProof] = useState("");
-  const [evidence, setEvidence] = useState("");
-  const [disputeReason, setDisputeReason] = useState("");
   const [chatText, setChatText] = useState("");
   const [decryptedMessages, setDecryptedMessages] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<string | null>(null);
@@ -249,25 +247,12 @@ export default function P2PTradeWindowPage({ params }: { params: Promise<{ id: s
             </Button>
           </Card>
 
+          {/* Dispute resolution UI is intentionally disabled for now.
           <Card className="space-y-3">
             <h2 className="font-semibold">Dispute</h2>
-            <Field label="Reason">
-              <Textarea value={disputeReason} onChange={(event) => setDisputeReason(event.target.value)} rows={3} />
-            </Field>
-            <Field label="Evidence reference">
-              <Input value={evidence} onChange={(event) => setEvidence(event.target.value)} placeholder="Receipt, chat, or transaction reference" />
-            </Field>
-            <Button fullWidth variant="secondary" disabled={working || !evidence} onClick={() => run("evidence", { label: "Submitted evidence", urlOrReference: evidence }, "Evidence submitted.")}>
-              <FileText className="w-4 h-4" /> Submit evidence
-            </Button>
-            <Button fullWidth variant="secondary" disabled={working || !disputeReason} onClick={() => run("dispute", { reason: disputeReason }, "Dispute opened.")}>
-              <AlertTriangle className="w-4 h-4" /> Open dispute
-            </Button>
-            <div className="grid grid-cols-2 gap-2">
-              <Button variant="ghost" disabled={working || trade.status !== "Disputed"} onClick={() => run("resolve", { outcome: "release", note: "Resolved to seller" }, "Resolved to seller.")}>Release</Button>
-              <Button variant="ghost" disabled={working || trade.status !== "Disputed"} onClick={() => run("resolve", { outcome: "refund", note: "Resolved to buyer" }, "Refunded.")}>Refund</Button>
-            </div>
+            ...
           </Card>
+          */}
 
           {message && <Card className="text-sm text-muted">{message}</Card>}
           <Link href={`/p2p/offers/${trade.offerId}`} className="block text-center text-sm text-accent hover:text-primary">

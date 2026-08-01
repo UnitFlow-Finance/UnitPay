@@ -1,18 +1,18 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { apiPost } from "@/lib/api";
 import { useCircleSdk } from "@/lib/circle/sdkContext";
-import { createP2POfferRemote } from "@/lib/p2p/client";
+import { createP2POfferRemote, listP2PPayoutDetailsRemote } from "@/lib/p2p/client";
 import { p2pMetadataHash, waitForP2POfferIdByMetadataHash } from "@/lib/p2p/contract";
-import { P2P_ASSETS, P2P_FIAT_CURRENCIES, P2P_PAYMENT_METHODS, merchantActionLabel, type P2POfferSide } from "@/lib/p2p/types";
+import { P2P_ASSETS, P2P_FIAT_CURRENCIES, P2P_PAYMENT_METHODS, merchantActionLabel, type P2PCustomerPayoutDetail, type P2POfferSide } from "@/lib/p2p/types";
 import { useWallet } from "@/lib/useWallet";
 import { walletForChainKey } from "@/lib/wallet/selectors";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
+import { Button, LinkButton } from "@/components/ui/Button";
 import { Field, Input, Select, Textarea } from "@/components/ui/Input";
 
 export default function NewP2POfferPage() {
@@ -27,12 +27,8 @@ export default function NewP2POfferPage() {
   const [maxAmount, setMaxAmount] = useState("500");
   const [availableAmount, setAvailableAmount] = useState("500");
   const [paymentMethod, setPaymentMethod] = useState("Bank Transfer");
-  const [paymentDetailLabel, setPaymentDetailLabel] = useState("Primary payment account");
-  const [paymentRecipientName, setPaymentRecipientName] = useState("");
-  const [paymentAccountIdentifier, setPaymentAccountIdentifier] = useState("");
-  const [paymentInstitutionName, setPaymentInstitutionName] = useState("");
-  const [paymentReferenceNote, setPaymentReferenceNote] = useState("");
-  const [paymentDetailInstructions, setPaymentDetailInstructions] = useState("");
+  const [savedPaymentDetails, setSavedPaymentDetails] = useState<P2PCustomerPayoutDetail[]>([]);
+  const [selectedPaymentDetailId, setSelectedPaymentDetailId] = useState("");
   const [timeLimit, setTimeLimit] = useState("15");
   const [instructions, setInstructions] = useState("Send fiat payment using the selected method, then upload proof before the deadline.");
   const [kycRequired, setKycRequired] = useState(false);
@@ -40,6 +36,21 @@ export default function NewP2POfferPage() {
   const [status, setStatus] = useState<"idle" | "working">("idle");
   const [error, setError] = useState<string | null>(null);
   const arcWallet = walletForChainKey(wallets, "arcTestnet");
+  const matchingPaymentDetails = savedPaymentDetails.filter((detail) => detail.method === paymentMethod);
+  const defaultPaymentDetail = matchingPaymentDetails.find((detail) => detail.isDefault) ?? matchingPaymentDetails[0];
+  const effectiveSelectedPaymentDetailId =
+    selectedPaymentDetailId && matchingPaymentDetails.some((detail) => detail.id === selectedPaymentDetailId)
+      ? selectedPaymentDetailId
+      : defaultPaymentDetail?.id ?? "";
+
+  useEffect(() => {
+    if (!primaryWallet?.id) return;
+    const timeout = window.setTimeout(async () => {
+      const details = await listP2PPayoutDetailsRemote(primaryWallet.id);
+      setSavedPaymentDetails(details);
+    }, 0);
+    return () => window.clearTimeout(timeout);
+  }, [primaryWallet?.id]);
 
   async function handleCreate() {
     if (!primaryWallet) return;
@@ -76,18 +87,13 @@ export default function NewP2POfferPage() {
     setStatus("working");
     try {
       if (!arcWallet) throw new Error("Create an Arc Testnet wallet before creating an on-chain P2P offer.");
-      const paymentDetails = [
-        {
-          id: crypto.randomUUID(),
-          method: paymentMethod,
-          label: paymentDetailLabel,
-          recipientName: paymentRecipientName,
-          accountIdentifier: paymentAccountIdentifier,
-          institutionName: paymentInstitutionName,
-          referenceNote: paymentReferenceNote,
-          instructions: paymentDetailInstructions,
-        },
-      ];
+      const selectedPaymentDetail = matchingPaymentDetails.find((detail) => detail.id === effectiveSelectedPaymentDetailId);
+      if (side === "sell" && !selectedPaymentDetail) {
+        throw new Error(`Add a saved ${paymentMethod} detail before creating a customer buy offer.`);
+      }
+      const paymentDetails = selectedPaymentDetail
+        ? [toOfferPaymentDetail(selectedPaymentDetail)]
+        : [];
       const userToken = window.localStorage.getItem("unitpay.userToken");
       if (!userToken) throw new Error("Session expired — please reload.");
       const metadataHash = p2pMetadataHash({
@@ -260,29 +266,49 @@ export default function NewP2POfferPage() {
           </Select>
         </Field>
         <div className="space-y-3 rounded-xl border border-border p-3">
-          <p className="text-sm font-medium">Payment details customers will see</p>
-          <Field label="Display label">
-            <Input value={paymentDetailLabel} onChange={(event) => setPaymentDetailLabel(event.target.value)} placeholder="Primary bank account" />
-          </Field>
-          <div className="grid sm:grid-cols-2 gap-3">
-            <Field label={recipientLabel(paymentMethod)}>
-              <Input value={paymentRecipientName} onChange={(event) => setPaymentRecipientName(event.target.value)} placeholder="Recipient name" />
-            </Field>
-            <Field label={identifierLabel(paymentMethod)}>
-              <Input value={paymentAccountIdentifier} onChange={(event) => setPaymentAccountIdentifier(event.target.value)} placeholder="Account, phone, email, or handle" />
-            </Field>
+          <div>
+            <p className="text-sm font-medium">Saved payment detail</p>
+            <p className="text-xs text-muted mt-1">
+              Customer buy offers attach one of your saved payout/payment details so buyers know where to pay after a trade starts.
+            </p>
           </div>
-          <div className="grid sm:grid-cols-2 gap-3">
-            <Field label={institutionLabel(paymentMethod)}>
-              <Input value={paymentInstitutionName} onChange={(event) => setPaymentInstitutionName(event.target.value)} placeholder="Bank, provider, network" />
-            </Field>
-            <Field label="Payment reference">
-              <Input value={paymentReferenceNote} onChange={(event) => setPaymentReferenceNote(event.target.value)} placeholder="Reference customers should include" />
-            </Field>
-          </div>
-          <Field label="Method-specific instructions">
-            <Textarea value={paymentDetailInstructions} onChange={(event) => setPaymentDetailInstructions(event.target.value)} rows={2} placeholder="Any extra steps for this payment method" />
-          </Field>
+          {side === "sell" ? (
+            matchingPaymentDetails.length === 0 ? (
+              <div className="space-y-3">
+                <p className="text-sm text-muted">
+                  No saved {paymentMethod} detail is available. Add one once and reuse it across merchant offers.
+                </p>
+                <LinkButton href="/p2p/payment-methods" variant="secondary" fullWidth>
+                  Add saved payment detail
+                </LinkButton>
+              </div>
+            ) : (
+              <>
+                <Field label="Attach saved detail">
+                  <Select value={effectiveSelectedPaymentDetailId} onChange={(event) => setSelectedPaymentDetailId(event.target.value)}>
+                    {matchingPaymentDetails.map((detail) => (
+                      <option key={detail.id} value={detail.id}>
+                        {detail.label} · {detail.accountIdentifier}{detail.isDefault ? " · Default" : ""}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                {matchingPaymentDetails
+                  .filter((detail) => detail.id === effectiveSelectedPaymentDetailId)
+                  .map((detail) => (
+                    <div key={detail.id} className="rounded-xl border border-border bg-background p-3 text-sm space-y-1">
+                      <p className="font-medium">{detail.label}</p>
+                      <p className="text-xs text-muted">{detail.method} · {detail.accountIdentifier}</p>
+                      {detail.institutionName && <p className="text-xs text-muted">{detail.institutionName}</p>}
+                    </div>
+                  ))}
+              </>
+            )
+          ) : (
+            <p className="text-sm text-muted">
+              Merchant buy offers do not attach your payment details. Customers attach their matching payout detail when they sell USDC to you.
+            </p>
+          )}
         </div>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Payment deadline (minutes)">
@@ -308,23 +334,15 @@ export default function NewP2POfferPage() {
   );
 }
 
-function recipientLabel(method: string): string {
-  if (method === "Cash") return "Contact person";
-  return "Recipient/account name";
-}
-
-function identifierLabel(method: string): string {
-  if (method === "Mobile Money") return "Mobile money number";
-  if (method === "Digital Wallet") return "Wallet email or handle";
-  if (method === "Cash") return "Pickup or meeting detail";
-  if (method === "UPI") return "UPI ID";
-  return "Account number or identifier";
-}
-
-function institutionLabel(method: string): string {
-  if (method === "Mobile Money") return "Network/provider";
-  if (method === "Digital Wallet") return "Wallet provider";
-  if (method === "Cash") return "City/area";
-  if (method === "SEPA" || method === "ACH") return "Bank name";
-  return "Institution/provider";
+function toOfferPaymentDetail(detail: P2PCustomerPayoutDetail) {
+  return {
+    id: detail.id,
+    method: detail.method,
+    label: detail.label,
+    recipientName: detail.recipientName,
+    accountIdentifier: detail.accountIdentifier,
+    institutionName: detail.institutionName,
+    referenceNote: detail.referenceNote,
+    instructions: detail.instructions,
+  };
 }

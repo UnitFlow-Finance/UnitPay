@@ -187,6 +187,8 @@ export const P2P_PAYMENT_METHODS = [
   "Digital Wallet",
   "Local Payment Provider",
   "Card Transfer",
+  "Gift Cards",
+  "Bill Payment",
   "UPI",
   "SEPA",
   "ACH",

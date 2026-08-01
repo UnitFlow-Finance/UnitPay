@@ -3,6 +3,7 @@ import { LandingHeader } from "@/components/onboarding/LandingHeader";
 import { Hero } from "@/components/onboarding/Hero";
 import { ProblemSection } from "@/components/onboarding/ProblemSection";
 import { SolutionSection } from "@/components/onboarding/SolutionSection";
+import { LatestUpdatesSection } from "@/components/onboarding/LatestUpdatesSection";
 import { BuildersSection } from "@/components/onboarding/BuildersSection";
 import { RoadmapSection } from "@/components/onboarding/RoadmapSection";
 import { VisionSection } from "@/components/onboarding/VisionSection";
@@ -29,6 +30,7 @@ export default function OnboardingLandingPage() {
         <Hero />
         <ProblemSection />
         <SolutionSection />
+        <LatestUpdatesSection />
         <BuildersSection />
         <RoadmapSection />
         <VisionSection />

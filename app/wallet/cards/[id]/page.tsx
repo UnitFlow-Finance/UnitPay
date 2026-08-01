@@ -43,7 +43,7 @@ export default function VirtualCardDetailPage({ params }: { params: Promise<{ id
 
   const maskedDetails = useMemo(() => {
     if (!card) return "";
-    return `${card.network} virtual card\nNickname: ${card.label}\nLast four: ${card.last4}\nExpiry: ${card.expiryMonth}/${card.expiryYear}\nCurrency: ${card.currency}`;
+    return `${card.network} virtual card\nNickname: ${card.label}\nCard number: **** **** **** ${card.last4}\nCVV: ***\nExpiry: ${card.expiryMonth}/${card.expiryYear}\nCurrency: ${card.currency}`;
   }, [card]);
 
   async function runAction(action: () => Promise<void>, done: string) {
@@ -57,6 +57,15 @@ export default function VirtualCardDetailPage({ params }: { params: Promise<{ id
       setMessage((error as Error).message ?? String(error));
     } finally {
       setWorking(false);
+    }
+  }
+
+  async function copyValue(value: string, done: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      setMessage(done);
+    } catch {
+      setMessage("Clipboard is unavailable in this browser.");
     }
   }
 
@@ -92,8 +101,18 @@ export default function VirtualCardDetailPage({ params }: { params: Promise<{ id
                   <p className="text-white/60">Expires</p>
                   <p className="font-semibold">{card.expiryMonth}/{card.expiryYear}</p>
                 </div>
+                <div>
+                  <p className="text-white/60">CVV</p>
+                  <p className="font-semibold">***</p>
+                </div>
               </div>
             </div>
+          </Card>
+          <Card className="space-y-2 text-sm">
+            <p className="font-semibold">AI-agent ready</p>
+            <p className="text-muted">
+              This virtual card can be permissioned for AI agents through UnitPay spending policies, limits, and merchant restrictions.
+            </p>
           </Card>
           <Card className="space-y-3">
             <Field label="Fund or withdraw amount">
@@ -124,6 +143,22 @@ export default function VirtualCardDetailPage({ params }: { params: Promise<{ id
             }, "Masked card details copied.")}>
               <Copy className="w-4 h-4" /> Copy masked details
             </Button>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                variant="ghost"
+                disabled={working}
+                onClick={() => copyValue(`**** **** **** ${card.last4}`, "Masked card number copied.")}
+              >
+                <Copy className="w-4 h-4" /> Number
+              </Button>
+              <Button
+                variant="ghost"
+                disabled={working}
+                onClick={() => copyValue("***", "Masked CVV copied.")}
+              >
+                <Copy className="w-4 h-4" /> CVV
+              </Button>
+            </div>
             <Button variant="ghost" disabled={working} fullWidth onClick={() => runAction(async () => {
               await deleteVirtualCardRemote(card.id);
               router.push("/wallet/cards");

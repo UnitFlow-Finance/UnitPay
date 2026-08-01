@@ -8,6 +8,7 @@ import { LinkButton } from "@/components/ui/Button";
 
 const NAV_LINKS = [
   { href: "#products", label: "Products" },
+  { href: "#latest", label: "Updates" },
   { href: "#builders", label: "Developers" },
   { href: "#vision", label: "About" },
   { href: "https://docs.unitflow.finance", label: "Docs", external: true },
