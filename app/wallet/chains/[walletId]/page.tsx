@@ -6,7 +6,12 @@ import { Card } from "@/components/ui/Card";
 import { LinkButton } from "@/components/ui/Button";
 import { TransactionHistory } from "@/components/TransactionHistory";
 import { useWallet } from "@/lib/useWallet";
-import { displayTokenBalances, tokenSymbol, walletChainLabel } from "@/lib/wallet/balances";
+import {
+  displayTokenBalances,
+  formatCompactBalance,
+  tokenSymbol,
+  walletChainLabel,
+} from "@/lib/wallet/balances";
 
 export default function WalletChainDetailPage({
   params,
@@ -61,7 +66,7 @@ export default function WalletChainDetailPage({
             <div key={balance.token.id ?? balance.token.tokenAddress ?? tokenSymbol(balance)} className="flex justify-between gap-3 text-sm">
               <span>{balance.token.name || tokenSymbol(balance)}</span>
               <span className="font-medium">
-                {balance.amount} {tokenSymbol(balance)}
+                {formatCompactBalance(balance.amount)} {tokenSymbol(balance)}
               </span>
             </div>
           ))

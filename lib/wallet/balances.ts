@@ -34,29 +34,18 @@ function isUsdcLike(balance: UnitPayTokenBalance): boolean {
   return tokenSymbol(balance) === "USDC" || Boolean(balance.token.isNative);
 }
 
-function isArcNativeUsdcDuplicate(
-  balance: UnitPayTokenBalance,
-  result: UnitPayTokenBalance[],
-  blockchain?: string,
-): { duplicate: boolean; replaceIndex?: number } {
-  if (blockchain !== ARC_TESTNET_BLOCKCHAIN || !isUsdcLike(balance)) {
-    return { duplicate: false };
-  }
+function betterArcUsdcDisplayBalance(
+  current: UnitPayTokenBalance,
+  next: UnitPayTokenBalance,
+): UnitPayTokenBalance {
+  const currentAmount = tokenAmount(current);
+  const nextAmount = tokenAmount(next);
+  if (nextAmount > currentAmount) return next;
+  if (currentAmount > nextAmount) return current;
 
-  const duplicateIndex = result.findIndex((entry) => {
-    const oneIsNative = Boolean(entry.token.isNative || balance.token.isNative);
-    return oneIsNative && isUsdcLike(entry) && amountsEqual(entry, balance);
-  });
-
-  if (duplicateIndex === -1) return { duplicate: false };
-
-  const existing = result[duplicateIndex];
-  const currentIsExplicitUsdc = tokenSymbol(balance) === "USDC" && !balance.token.isNative;
-  const existingIsNative = Boolean(existing.token.isNative);
-  return {
-    duplicate: true,
-    replaceIndex: currentIsExplicitUsdc && existingIsNative ? duplicateIndex : undefined,
-  };
+  const nextIsExplicitUsdc = tokenSymbol(next) === "USDC" && !next.token.isNative;
+  const currentIsNative = Boolean(current.token.isNative);
+  return nextIsExplicitUsdc && currentIsNative ? next : current;
 }
 
 export function displayTokenBalances(
@@ -73,14 +62,39 @@ export function displayTokenBalances(
         amountsEqual(entry, balance) &&
         (entry.token.isNative || balance.token.isNative),
     );
-    const arcDuplicate = isArcNativeUsdcDuplicate(balance, result, blockchain);
-    if (arcDuplicate.replaceIndex !== undefined) {
-      result[arcDuplicate.replaceIndex] = balance;
-    } else if (!duplicateNativeUsdc && !arcDuplicate.duplicate) {
+    const arcUsdcIndex =
+      blockchain === ARC_TESTNET_BLOCKCHAIN && isUsdcLike(balance)
+        ? result.findIndex((entry) => isUsdcLike(entry))
+        : -1;
+
+    if (arcUsdcIndex !== -1) {
+      result[arcUsdcIndex] = betterArcUsdcDisplayBalance(result[arcUsdcIndex], balance);
+    } else if (!duplicateNativeUsdc) {
       result.push(balance);
     }
   }
   return result;
+}
+
+export function formatCompactBalance(value: number | string): string {
+  const amount = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(amount)) return "0.00";
+
+  const sign = amount < 0 ? "-" : "";
+  const absolute = Math.abs(amount);
+  const units = [
+    { value: 1_000_000_000, suffix: "b" },
+    { value: 1_000_000, suffix: "m" },
+    { value: 1_000, suffix: "k" },
+  ];
+  const unit = units.find((entry) => absolute >= entry.value);
+  const scaled = unit ? absolute / unit.value : absolute;
+  const formatted = scaled.toLocaleString("en-US", {
+    minimumFractionDigits: unit ? 0 : 2,
+    maximumFractionDigits: 2,
+  });
+
+  return `${sign}${formatted}${unit?.suffix ?? ""}`;
 }
 
 export function groupTotalBySymbol(

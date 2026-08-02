@@ -33,6 +33,7 @@ import {
   groupTotalBySymbol,
   primaryUsdcBalance,
   displayTokenBalances,
+  formatCompactBalance,
   tokenSymbol,
   walletChainLabel,
 } from "@/lib/wallet/balances";
@@ -144,7 +145,7 @@ export default function WalletDashboardPage() {
                 <div className="min-w-0">
                   <p className="text-xs text-muted uppercase tracking-wide">Gateway balance</p>
                   <p className="text-[1.75rem] leading-tight sm:text-2xl font-semibold break-words">
-                    {gateway.loading ? "..." : gateway.total} USDC
+                    {gateway.loading ? "..." : formatCompactBalance(gateway.total)} USDC
                   </p>
                 </div>
                 <Globe2 className="w-6 h-6 text-primary shrink-0" />
@@ -156,7 +157,7 @@ export default function WalletDashboardPage() {
                 </div>
                 <div className="min-w-0">
                   <p className="text-xs text-muted">Personal wallet</p>
-                  <p className="font-medium">{personalUsdcTotal.toFixed(2)} USDC</p>
+                  <p className="font-medium">{formatCompactBalance(personalUsdcTotal)} USDC</p>
                 </div>
               </div>
             </Card>
@@ -181,7 +182,7 @@ export default function WalletDashboardPage() {
                 {Object.entries(totalsBySymbol).map(([symbol, total]) => (
                   <div key={symbol} className="min-w-0 rounded-xl border border-border bg-background px-3 py-2">
                     <p className="text-xs text-muted">{symbol}</p>
-                    <p className="font-medium truncate">{total.toFixed(6).replace(/\.?0+$/, "")}</p>
+                    <p className="font-medium truncate">{formatCompactBalance(total)}</p>
                   </div>
                 ))}
               </div>
@@ -205,7 +206,7 @@ export default function WalletDashboardPage() {
                           </p>
                         </div>
                         <span className="text-sm font-semibold shrink-0 max-w-[42%] truncate text-right">
-                          {usdc?.amount ?? "0"} USDC
+                          {formatCompactBalance(usdc?.amount ?? 0)} USDC
                         </span>
                       </div>
                       <div className="mt-2 flex flex-wrap gap-1.5">
@@ -214,7 +215,7 @@ export default function WalletDashboardPage() {
                             key={`${group.wallet.id}-${balance.token.id ?? balance.token.tokenAddress ?? tokenSymbol(balance)}`}
                             className="rounded-lg bg-surface px-2 py-1 text-[11px] text-muted"
                           >
-                            {balance.amount} {tokenSymbol(balance)}
+                            {formatCompactBalance(balance.amount)} {tokenSymbol(balance)}
                           </span>
                         ))}
                       </div>

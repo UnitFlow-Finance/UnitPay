@@ -11,6 +11,7 @@ import { useWallet } from "@/lib/useWallet";
 import { allocateSourceChains, type AllocationLeg } from "@/lib/gateway/allocate";
 import { sendGatewayUsdcLeg } from "@/lib/gateway/transferClient";
 import { walletForChainKey } from "@/lib/wallet/selectors";
+import { formatCompactBalance } from "@/lib/wallet/balances";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -66,7 +67,7 @@ export default function UnifiedBalancePage() {
               One balance, every testnet chain
             </p>
             <p className="text-3xl sm:text-4xl font-semibold tracking-tight">
-              {gateway.loading ? "…" : gateway.total}{" "}
+              {gateway.loading ? "…" : formatCompactBalance(gateway.total)}{" "}
               <span className="text-lg text-muted font-medium">USDC</span>
             </p>
             <button
@@ -89,7 +90,7 @@ export default function UnifiedBalancePage() {
                     className="flex justify-between items-center px-4 sm:px-5 py-3 text-sm"
                   >
                     <span>{b.chainLabel}</span>
-                    <span className="font-medium">{b.balance} USDC</span>
+                    <span className="font-medium">{formatCompactBalance(b.balance)} USDC</span>
                   </div>
                 ))}
             </Card>

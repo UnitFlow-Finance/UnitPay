@@ -9,6 +9,7 @@ import { useWallet } from "@/lib/useWallet";
 import {
   tokenAmount,
   displayTokenBalances,
+  formatCompactBalance,
   tokenSymbol,
   uniqueTokenKey,
   walletChainLabel,
@@ -162,7 +163,7 @@ export default function SendPage() {
           <Card className="text-sm text-muted">
             Sending from{" "}
             <span className="text-foreground font-medium">{walletChainLabel(selectedGroup)}</span>.
-            Available: {availableAmount} {selectedSymbol}.
+            Available: {formatCompactBalance(availableAmount)} {selectedSymbol}.
           </Card>
 
           <Field label="Send from chain">
@@ -188,7 +189,7 @@ export default function SendPage() {
             >
               {selectedBalances.map((balance) => (
                 <option key={uniqueTokenKey(balance)} value={uniqueTokenKey(balance)}>
-                  {balance.amount} {tokenSymbol(balance)}
+                  {formatCompactBalance(balance.amount)} {tokenSymbol(balance)}
                 </option>
               ))}
             </Select>
