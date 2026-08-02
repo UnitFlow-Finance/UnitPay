@@ -27,6 +27,7 @@ import { Field, Select } from "@/components/ui/Input";
 import { apiPost } from "@/lib/api";
 import { DEFAULT_SELECTOR_CHAINS, getChain } from "@/lib/chains/config";
 import { useCircleSdk } from "@/lib/circle/sdkContext";
+import { getStoredAuthMethod } from "@/lib/session";
 import { useGatewayBalance } from "@/lib/useGatewayBalance";
 import { useWallet } from "@/lib/useWallet";
 import {
@@ -113,6 +114,7 @@ export default function WalletDashboardPage() {
       const { challengeId } = await apiPost<{ challengeId: string }>("/api/wallet/create", {
         userToken,
         blockchain: createChain.circleBlockchain,
+        accountType: getStoredAuthMethod() === "google" ? "SCA" : "EOA",
       });
       if (!challengeId) throw new Error("No wallet creation challenge returned.");
       await executeChallenge(challengeId);

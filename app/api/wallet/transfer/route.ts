@@ -12,6 +12,7 @@ import {
   circlePaymasterEnabled,
   paymasterTransferFee,
   type SendFeeMode,
+  walletSupportsCirclePaymaster,
 } from "@/lib/circle/paymaster";
 
 const MAX_UNCONFIRMED_USDC_WARNING_THRESHOLD = 100;
@@ -74,12 +75,21 @@ export async function POST(request: Request) {
       }
     }
 
-    await requireWalletForBlockchain({
+    const wallet = await requireWalletForBlockchain({
       circleClient,
       userToken,
       walletId,
       blockchain: String(blockchain),
     });
+    if (requestedFeeMode === "paymaster" && !walletSupportsCirclePaymaster(wallet)) {
+      return NextResponse.json(
+        {
+          error:
+            "Circle Paymaster requires an SCA wallet. Sign in with Google and create an SCA wallet, or use normal native gas for this wallet.",
+        },
+        { status: 400 },
+      );
+    }
     const isUsdcTransfer =
       String(tokenAddress ?? "") === ""
         ? chain.usdcIsNativeGas
@@ -91,6 +101,7 @@ export async function POST(request: Request) {
       chainKey,
       amount: isUsdcTransfer ? String(amount) : undefined,
       requireTransferAmount: isUsdcTransfer,
+      requireNativeGas: requestedFeeMode !== "paymaster",
     });
 
     const response = await circleClient.createTransaction({

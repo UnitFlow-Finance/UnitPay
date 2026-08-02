@@ -4,6 +4,7 @@ import {
   hasNativeGasBalance,
   nativeGasBalance,
   paymasterTransferFee,
+  walletSupportsCirclePaymaster,
 } from "@/lib/circle/paymaster";
 import type { UnitPayTokenBalance } from "@/lib/types";
 
@@ -40,5 +41,12 @@ describe("Circle paymaster helpers", () => {
       type: "paymaster",
       config: { feeLevel: "MEDIUM", paymaster: true, sponsored: true },
     });
+  });
+
+  it("requires an SCA wallet for paymaster transfers", () => {
+    expect(walletSupportsCirclePaymaster({ accountType: "SCA" })).toBe(true);
+    expect(walletSupportsCirclePaymaster({ accountType: "sca" })).toBe(true);
+    expect(walletSupportsCirclePaymaster({ accountType: "EOA" })).toBe(false);
+    expect(walletSupportsCirclePaymaster(null)).toBe(false);
   });
 });

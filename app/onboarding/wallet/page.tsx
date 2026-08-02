@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { apiPost } from "@/lib/api";
 import { PRIMARY_CHAIN } from "@/lib/chains/config";
 import { useCircleSdk } from "@/lib/circle/sdkContext";
@@ -45,13 +45,14 @@ function OnboardingWalletPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = searchParams.get("next");
-  const { ensureSession, loginWithGoogle, executeChallenge, isReady, error: sdkError } =
+  const { ensureSession, loginWithGoogle, executeChallenge, isReady, error: sdkError, userId } =
     useCircleSdk();
   const [status, setStatus] = useState<"idle" | "working" | "error" | "created">("idle");
   const [message, setMessage] = useState<string | null>(null);
   const [recoveryCode, setRecoveryCode] = useState<string | null>(null);
   const [recoveryConfirm, setRecoveryConfirm] = useState("");
   const [copied, setCopied] = useState(false);
+  const autoCreateAttemptedRef = useRef(false);
 
   useEffect(() => {
     const storedUserId = getStoredUserId();
@@ -67,6 +68,16 @@ function OnboardingWalletPageInner() {
     });
   }, [next, router]);
 
+  useEffect(() => {
+    if (!userId || status !== "idle" || autoCreateAttemptedRef.current) return;
+    if (getStoredAuthMethod() !== "google" || isWalletBackupComplete()) return;
+    autoCreateAttemptedRef.current = true;
+    void handleCreateWallet();
+    // handleCreateWallet intentionally remains an event-style function; this
+    // effect only resumes a returned Google OAuth session once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, userId]);
+
   async function handleCreateWallet() {
     setStatus("working");
     setMessage("Setting up your session...");
@@ -76,7 +87,11 @@ function OnboardingWalletPageInner() {
       setMessage("Creating your Arc Testnet wallet...");
       const { challengeId } = await apiPost<{ challengeId: string }>(
         "/api/wallet/initialize",
-        { userToken, blockchains: [PRIMARY_CHAIN.circleBlockchain] },
+        {
+          userToken,
+          blockchains: [PRIMARY_CHAIN.circleBlockchain],
+          accountType: getStoredAuthMethod() === "google" ? "SCA" : "EOA",
+        },
       );
 
       if (!challengeId) {

@@ -1,6 +1,7 @@
 "use client";
 
 import { W3SSdk } from "@circle-fin/w3s-pw-web-sdk";
+import { SocialLoginProvider } from "@circle-fin/w3s-pw-web-sdk/dist/src/types";
 import {
   ReactNode,
   createContext,
@@ -24,6 +25,7 @@ import {
 const TOKEN_TTL_MS = 55 * 60 * 1000;
 const SOCIAL_DEVICE_TOKEN_STORAGE_KEY = "unitpay.socialDeviceToken";
 const SOCIAL_DEVICE_ENCRYPTION_KEY_STORAGE_KEY = "unitpay.socialDeviceEncryptionKey";
+const SOCIAL_RETURN_PATH_STORAGE_KEY = "unitpay.socialReturnPath";
 
 interface CircleSdkState {
   sdk: W3SSdk | null;
@@ -80,7 +82,7 @@ function socialLoginConfig(
   const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
   const googleRedirectUri =
     process.env.NEXT_PUBLIC_GOOGLE_REDIRECT_URI ||
-    (typeof window !== "undefined" ? window.location.href.split("#")[0] : "");
+    (typeof window !== "undefined" ? window.location.origin : "");
 
   if (!appId) return null;
   if (!googleClientId || !deviceToken || !deviceEncryptionKey) {
@@ -159,6 +161,15 @@ export function CircleSdkProvider({ children }: { children: ReactNode }) {
       encryptionKey: result.encryptionKey,
       error: null,
     }));
+
+    const returnPath = window.localStorage.getItem(SOCIAL_RETURN_PATH_STORAGE_KEY);
+    if (returnPath?.startsWith("/")) {
+      window.localStorage.removeItem(SOCIAL_RETURN_PATH_STORAGE_KEY);
+      const currentPath = `${window.location.pathname}${window.location.search}`;
+      if (currentPath !== returnPath) {
+        window.location.replace(returnPath);
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -353,6 +364,10 @@ export function CircleSdkProvider({ children }: { children: ReactNode }) {
     if (!sdk) throw new Error("Circle SDK not initialized yet");
 
     const deviceId = await sdk.getDeviceId();
+    window.localStorage.setItem(
+      SOCIAL_RETURN_PATH_STORAGE_KEY,
+      `${window.location.pathname}${window.location.search}`,
+    );
     const deviceRes = await fetch("/api/wallet/social/device-token", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -383,7 +398,7 @@ export function CircleSdkProvider({ children }: { children: ReactNode }) {
         setState((prev) => ({ ...prev, error: (err as Error).message ?? String(err) }));
       }
     });
-    await sdk.performLogin("GOOGLE" as never);
+    await sdk.performLogin(SocialLoginProvider.GOOGLE);
   }, [persistSocialSession]);
 
   const executeChallenge = useCallback(

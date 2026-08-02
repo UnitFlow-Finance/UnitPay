@@ -82,6 +82,7 @@ export async function requireUsdcSpendableBalance({
   chainKey,
   amount,
   requireTransferAmount = true,
+  requireNativeGas = true,
 }: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   circleClient: any;
@@ -90,6 +91,7 @@ export async function requireUsdcSpendableBalance({
   chainKey: string;
   amount?: string;
   requireTransferAmount?: boolean;
+  requireNativeGas?: boolean;
 }): Promise<void> {
   const chain = getChain(chainKey);
   const response = await circleClient.getWalletTokenBalance({ userToken, walletId });
@@ -116,7 +118,7 @@ export async function requireUsdcSpendableBalance({
   }
 
   const nativeGasBalance = nativeGasBalanceBaseUnits(balances);
-  if (nativeGasBalance <= 0n) {
+  if (requireNativeGas && nativeGasBalance <= 0n) {
     throw badRequest(`Insufficient native gas on ${chain.label} to submit this transaction.`);
   }
 }

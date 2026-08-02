@@ -1,5 +1,5 @@
 import { getChain } from "@/lib/chains/config";
-import type { UnitPayTokenBalance } from "@/lib/types";
+import type { UnitPayTokenBalance, UnitPayWallet } from "@/lib/types";
 import { tokenAmount, tokenSymbol } from "@/lib/wallet/balances";
 
 export type SendFeeMode = "native" | "paymaster";
@@ -14,6 +14,12 @@ export function circlePaymasterEnabled(): boolean {
 export function chainSupportsCirclePaymaster(chainKey: string): boolean {
   const chain = getChain(chainKey);
   return chain.family === "evm" && !chain.usdcIsNativeGas;
+}
+
+export function walletSupportsCirclePaymaster(
+  wallet?: Pick<UnitPayWallet, "accountType"> | null,
+): boolean {
+  return wallet?.accountType?.toUpperCase() === "SCA";
 }
 
 export function nativeGasBalance(

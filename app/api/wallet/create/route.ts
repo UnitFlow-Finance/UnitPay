@@ -11,7 +11,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { userToken, blockchain } = await request.json();
+    const { userToken, blockchain, accountType } = await request.json();
     if (!userToken || !blockchain) {
       return NextResponse.json(
         { error: "Missing required field(s): userToken, blockchain" },
@@ -19,11 +19,13 @@ export async function POST(request: Request) {
       );
     }
 
+    const walletAccountType = accountType === "SCA" ? "SCA" : "EOA";
+
     const response = await circleClient.createWallet({
       userToken,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       blockchains: [String(blockchain)] as any,
-      accountType: "EOA",
+      accountType: walletAccountType,
     });
 
     return NextResponse.json({ challengeId: response.data?.challengeId });

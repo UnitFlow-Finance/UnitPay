@@ -7,8 +7,8 @@ import { PRIMARY_CHAIN } from "@/lib/chains/config";
  * Initializes a user (sets PIN via Circle's hosted UI) and creates their
  * first wallet(s). Returns a challengeId the frontend executes with
  * sdk.execute(). Defaults to Arc Testnet (this app's primary chain) using
- * an EOA account — no separate native gas token exists on Arc, so SCA's
- * lazy-deployment gas cost has no benefit there.
+ * an EOA account. Social-login callers can request SCA wallets for
+ * Paymaster-compatible chains.
  *
  * If the user is already initialized, Circle returns error code 155106 —
  * the frontend should treat that as "fetch existing wallets" rather than
@@ -23,7 +23,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { userToken, blockchains } = await request.json();
+    const { userToken, blockchains, accountType } = await request.json();
     if (!userToken || typeof userToken !== "string") {
       return NextResponse.json({ error: "Missing userToken" }, { status: 400 });
     }
@@ -32,12 +32,13 @@ export async function POST(request: Request) {
       Array.isArray(blockchains) && blockchains.length > 0
         ? blockchains
         : [PRIMARY_CHAIN.circleBlockchain];
+    const walletAccountType = accountType === "SCA" ? "SCA" : "EOA";
 
     const response = await circleClient.createUserPinWithWallets({
       userToken,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       blockchains: targetBlockchains as any,
-      accountType: "EOA",
+      accountType: walletAccountType,
     });
 
     return NextResponse.json({ challengeId: response.data?.challengeId });

@@ -12,6 +12,7 @@ import {
   hasNativeGasBalance,
   nativeGasBalance,
   type SendFeeMode,
+  walletSupportsCirclePaymaster,
 } from "@/lib/circle/paymaster";
 import { useCircleSdk } from "@/lib/circle/sdkContext";
 import { useWallet } from "@/lib/useWallet";
@@ -89,7 +90,15 @@ export default function SendPage() {
   const paymasterAvailable =
     circlePaymasterEnabled() &&
     chainSupportsCirclePaymaster(chainKey) &&
+    walletSupportsCirclePaymaster(wallet) &&
     selectedSymbol === "USDC";
+  const paymasterHiddenReason =
+    circlePaymasterEnabled() &&
+    chainSupportsCirclePaymaster(chainKey) &&
+    selectedSymbol === "USDC" &&
+    !walletSupportsCirclePaymaster(wallet)
+      ? "Circle Paymaster requires an SCA wallet. Google social-login wallets use SCA; this wallet uses normal native gas."
+      : null;
 
   useEffect(() => {
     if (selectedToken && uniqueTokenKey(selectedToken) !== selectedTokenKey) {
@@ -284,6 +293,9 @@ export default function SendPage() {
                 </button>
               )}
             </div>
+            {paymasterHiddenReason && (
+              <p className="text-xs text-muted">{paymasterHiddenReason}</p>
+            )}
           </div>
 
           {error && <p className="text-error text-sm">{error}</p>}
