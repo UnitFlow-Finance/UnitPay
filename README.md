@@ -100,6 +100,12 @@ Open [http://localhost:3000](http://localhost:3000).
 See [`.env.example`](.env.example) for the full list with explanations.
 At minimum you need a **testnet** Circle Developer API key and a User
 Controlled Wallets App ID from the [Circle Console](https://console.circle.com).
+Google login is optional; enable it by configuring Google in the Circle
+User-Controlled Wallets configurator, then setting
+`NEXT_PUBLIC_GOOGLE_CLIENT_ID` and `NEXT_PUBLIC_GOOGLE_REDIRECT_URI`.
+Circle Paymaster is also optional; set `NEXT_PUBLIC_CIRCLE_PAYMASTER_ENABLED`
+and `CIRCLE_PAYMASTER_ENABLED` to `true` only after Paymaster is enabled for
+the relevant Circle account/chains.
 
 Registry-backed metadata writes use `UNITPAY_METADATA_REGISTRY_PRIVATE_KEY`
 as a deployment secret. Configure it only in the hosting platform's secret

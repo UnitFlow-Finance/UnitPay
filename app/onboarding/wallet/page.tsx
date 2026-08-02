@@ -8,6 +8,7 @@ import { apiPost } from "@/lib/api";
 import { PRIMARY_CHAIN } from "@/lib/chains/config";
 import { useCircleSdk } from "@/lib/circle/sdkContext";
 import {
+  getStoredAuthMethod,
   getStoredUserId,
   isWalletBackupComplete,
   markWalletBackupComplete,
@@ -44,7 +45,8 @@ function OnboardingWalletPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = searchParams.get("next");
-  const { ensureSession, executeChallenge, isReady, error: sdkError } = useCircleSdk();
+  const { ensureSession, loginWithGoogle, executeChallenge, isReady, error: sdkError } =
+    useCircleSdk();
   const [status, setStatus] = useState<"idle" | "working" | "error" | "created">("idle");
   const [message, setMessage] = useState<string | null>(null);
   const [recoveryCode, setRecoveryCode] = useState<string | null>(null);
@@ -58,6 +60,7 @@ function OnboardingWalletPageInner() {
       router.replace(next || "/wallet");
       return;
     }
+    if (getStoredAuthMethod() === "google") return;
     queueMicrotask(() => {
       setRecoveryCode(storedUserId);
       setStatus("created");
@@ -92,6 +95,12 @@ function OnboardingWalletPageInner() {
         throw new Error("Wallet creation did not return any wallets.");
       }
 
+      if (getStoredAuthMethod() === "google") {
+        markWalletBackupComplete();
+        router.push(next || "/wallet");
+        return;
+      }
+
       // Show the recovery code once, right after successful creation, so
       // the user can save it before continuing into the app. This is the
       // ONLY way to log back in on a different browser/device — Circle
@@ -106,6 +115,11 @@ function OnboardingWalletPageInner() {
       if (msg.includes("155106") || msg.toLowerCase().includes("already")) {
         const storedUserId = getStoredUserId();
         if (storedUserId && !isWalletBackupComplete()) {
+          if (getStoredAuthMethod() === "google") {
+            markWalletBackupComplete();
+            router.push(next || "/wallet");
+            return;
+          }
           setRecoveryCode(storedUserId);
           setStatus("created");
           setMessage(null);
@@ -117,6 +131,17 @@ function OnboardingWalletPageInner() {
 
       setStatus("error");
       setMessage(msg);
+    }
+  }
+
+  async function handleGoogleCreate() {
+    setStatus("working");
+    setMessage("Opening Google sign in...");
+    try {
+      await loginWithGoogle();
+    } catch (err) {
+      setStatus("error");
+      setMessage((err as Error).message ?? String(err));
     }
   }
 
@@ -214,6 +239,16 @@ function OnboardingWalletPageInner() {
           fullWidth
         >
           {status === "working" ? "Working..." : "Create my wallet"}
+        </Button>
+
+        <Button
+          onClick={handleGoogleCreate}
+          disabled={!isReady || status === "working"}
+          size="lg"
+          variant="secondary"
+          fullWidth
+        >
+          Continue with Google
         </Button>
 
         {message && (

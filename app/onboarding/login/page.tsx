@@ -35,7 +35,14 @@ function OnboardingLoginPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = searchParams.get("next");
-  const { loginWithRecoveryCode, executeChallenge, isReady, error: sdkError } = useCircleSdk();
+  const {
+    loginWithRecoveryCode,
+    loginWithGoogle,
+    executeChallenge,
+    isReady,
+    userId,
+    error: sdkError,
+  } = useCircleSdk();
   const [code, setCode] = useState("");
   const [status, setStatus] = useState<"idle" | "working" | "error">("idle");
   const [message, setMessage] = useState<string | null>(null);
@@ -44,7 +51,7 @@ function OnboardingLoginPageInner() {
     if (hasStoredUserSession()) {
       router.replace(next || "/wallet");
     }
-  }, [next, router]);
+  }, [next, router, userId]);
 
   async function handleLogin() {
     setStatus("working");
@@ -74,6 +81,17 @@ function OnboardingLoginPageInner() {
     }
   }
 
+  async function handleGoogleLogin() {
+    setStatus("working");
+    setMessage("Opening Google sign in...");
+    try {
+      await loginWithGoogle();
+    } catch (err) {
+      setStatus("error");
+      setMessage((err as Error).message ?? String(err));
+    }
+  }
+
   return (
     <main className="min-h-full flex flex-col items-center justify-center px-6 py-12 sm:py-16">
       <div className="w-full max-w-sm sm:max-w-md space-y-7 sm:space-y-8 text-center">
@@ -91,6 +109,22 @@ function OnboardingLoginPageInner() {
         </div>
 
         <div className="space-y-4 text-left">
+          <Button
+            onClick={handleGoogleLogin}
+            disabled={!isReady || status === "working"}
+            size="lg"
+            variant="secondary"
+            fullWidth
+          >
+            Continue with Google
+          </Button>
+
+          <div className="flex items-center gap-3">
+            <span className="h-px flex-1 bg-border" />
+            <span className="text-[11px] uppercase tracking-wide text-subtle">or</span>
+            <span className="h-px flex-1 bg-border" />
+          </div>
+
           <Field label="Recovery code">
             <Input
               value={code}
@@ -124,9 +158,8 @@ function OnboardingLoginPageInner() {
         {sdkError && <p className="text-error text-xs">SDK error: {sdkError}</p>}
 
         <p className="text-xs text-subtle leading-relaxed">
-          Passkeys, email OTP, social login, and magic links should be connected through an
-          identity provider before production launch. This build supports trusted-device
-          sessions so returning users do not answer recovery questions on every login.
+          Google login uses the Circle social-login configuration for this app. Recovery code
+          login remains available for older UnitPay wallets and trusted-device sessions.
         </p>
 
         <div className="flex items-center justify-center gap-4 text-xs">

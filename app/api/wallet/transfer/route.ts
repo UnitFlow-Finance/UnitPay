@@ -3,7 +3,16 @@ import { circleClient, circleConfigured } from "@/lib/circle/client";
 import { circleErrorResponse } from "@/lib/circle/apiError";
 import { getChain } from "@/lib/chains/config";
 import { chainKeyForBlockchain } from "@/lib/chains/lookup";
-import { requireUsdcSpendableBalance, requireWalletForBlockchain } from "@/lib/circle/transactionGuards";
+import {
+  requireUsdcSpendableBalance,
+  requireWalletForBlockchain,
+} from "@/lib/circle/transactionGuards";
+import {
+  chainSupportsCirclePaymaster,
+  circlePaymasterEnabled,
+  paymasterTransferFee,
+  type SendFeeMode,
+} from "@/lib/circle/paymaster";
 
 const MAX_UNCONFIRMED_USDC_WARNING_THRESHOLD = 100;
 
@@ -25,7 +34,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { userToken, walletId, destinationAddress, amount, tokenAddress, blockchain } =
+    const { userToken, walletId, destinationAddress, amount, tokenAddress, blockchain, feeMode } =
       await request.json();
 
     if (!userToken || !walletId || !destinationAddress || !amount || !blockchain) {
@@ -48,6 +57,23 @@ export async function POST(request: Request) {
     }
 
     const chainKey = chainKeyForBlockchain(String(blockchain));
+    const chain = getChain(chainKey);
+    const requestedFeeMode: SendFeeMode = feeMode === "paymaster" ? "paymaster" : "native";
+    if (requestedFeeMode === "paymaster") {
+      if (!circlePaymasterEnabled()) {
+        return NextResponse.json(
+          { error: "Circle Paymaster is not enabled for this UnitPay deployment." },
+          { status: 400 },
+        );
+      }
+      if (!chainSupportsCirclePaymaster(chainKey)) {
+        return NextResponse.json(
+          { error: `Circle Paymaster is not available for ${chain.label}.` },
+          { status: 400 },
+        );
+      }
+    }
+
     await requireWalletForBlockchain({
       circleClient,
       userToken,
@@ -55,8 +81,9 @@ export async function POST(request: Request) {
       blockchain: String(blockchain),
     });
     const isUsdcTransfer =
-      !tokenAddress ||
-      String(tokenAddress).toLowerCase() === getChain(chainKey).usdcAddress.toLowerCase();
+      String(tokenAddress ?? "") === ""
+        ? chain.usdcIsNativeGas
+        : String(tokenAddress).toLowerCase() === chain.usdcAddress.toLowerCase();
     await requireUsdcSpendableBalance({
       circleClient,
       userToken,
@@ -74,7 +101,11 @@ export async function POST(request: Request) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       blockchain: blockchain as any,
       tokenAddress: tokenAddress ?? "",
-      fee: { type: "level", config: { feeLevel: "MEDIUM" } },
+      // Paymaster support is configuration-dependent on Circle's side. Keep
+      // native fees as the default and pass sponsored-gas metadata only when
+      // explicitly selected.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      fee: paymasterTransferFee(requestedFeeMode) as any,
     });
 
     return NextResponse.json({ challengeId: response.data?.challengeId });

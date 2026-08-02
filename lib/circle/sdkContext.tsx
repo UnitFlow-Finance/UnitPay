@@ -11,7 +11,9 @@ import {
   useState,
 } from "react";
 import {
+  AUTH_METHOD_STORAGE_KEY,
   ENCRYPTION_KEY_STORAGE_KEY,
+  SOCIAL_REFRESH_TOKEN_STORAGE_KEY,
   USER_ID_STORAGE_KEY,
   USER_TOKEN_EXP_STORAGE_KEY,
   USER_TOKEN_STORAGE_KEY,
@@ -20,6 +22,8 @@ import {
 
 // Circle user tokens are valid for 60 minutes; refresh a little early.
 const TOKEN_TTL_MS = 55 * 60 * 1000;
+const SOCIAL_DEVICE_TOKEN_STORAGE_KEY = "unitpay.socialDeviceToken";
+const SOCIAL_DEVICE_ENCRYPTION_KEY_STORAGE_KEY = "unitpay.socialDeviceEncryptionKey";
 
 interface CircleSdkState {
   sdk: W3SSdk | null;
@@ -50,6 +54,7 @@ interface CircleSdkContextValue extends CircleSdkState {
   loginWithRecoveryCode: (
     userId: string,
   ) => Promise<{ userId: string; userToken: string; encryptionKey: string }>;
+  loginWithGoogle: () => Promise<void>;
   /** Wraps sdk.execute() in a Promise for simpler call sites. */
   executeChallenge: (challengeId: string) => Promise<{
     status: string;
@@ -67,6 +72,35 @@ function randomUserId(): string {
   return `unitpay_${crypto.randomUUID()}`;
 }
 
+function socialLoginConfig(
+  deviceToken?: string | null,
+  deviceEncryptionKey?: string | null,
+) {
+  const appId = process.env.NEXT_PUBLIC_CIRCLE_APP_ID;
+  const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+  const googleRedirectUri =
+    process.env.NEXT_PUBLIC_GOOGLE_REDIRECT_URI ||
+    (typeof window !== "undefined" ? window.location.href.split("#")[0] : "");
+
+  if (!appId) return null;
+  if (!googleClientId || !deviceToken || !deviceEncryptionKey) {
+    return { appSettings: { appId } };
+  }
+
+  return {
+    appSettings: { appId },
+    loginConfigs: {
+      google: {
+        clientId: googleClientId,
+        redirectUri: googleRedirectUri,
+        selectAccountPrompt: true,
+      },
+      deviceToken,
+      deviceEncryptionKey,
+    },
+  };
+}
+
 export function CircleSdkProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<CircleSdkState>({
     sdk: null,
@@ -78,10 +112,75 @@ export function CircleSdkProvider({ children }: { children: ReactNode }) {
   });
 
   const sdkRef = useRef<W3SSdk | null>(null);
+  const persistSocialSession = useCallback(async (result: {
+    userToken: string;
+    encryptionKey: string;
+    refreshToken?: string;
+  }) => {
+    const sessionRes = await fetch("/api/wallet/social/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userToken: result.userToken }),
+    });
+    if (!sessionRes.ok) {
+      const body = await sessionRes.json().catch(() => ({}));
+      throw new Error(body.message ?? body.error ?? "Failed to resolve Circle social session");
+    }
+    const { userId } = await sessionRes.json();
+    if (!userId) throw new Error("Circle social session did not include a user ID.");
+
+    const activeUserId = window.localStorage.getItem(USER_ID_STORAGE_KEY);
+    if (activeUserId && activeUserId !== userId) {
+      throw new Error(
+        "Another UnitPay account is already active in this browser. Log out before signing in with Google.",
+      );
+    }
+
+    window.localStorage.setItem(USER_ID_STORAGE_KEY, userId);
+    window.localStorage.setItem(USER_TOKEN_STORAGE_KEY, result.userToken);
+    window.localStorage.setItem(ENCRYPTION_KEY_STORAGE_KEY, result.encryptionKey);
+    window.localStorage.setItem(USER_TOKEN_EXP_STORAGE_KEY, String(Date.now() + TOKEN_TTL_MS));
+    window.localStorage.setItem(AUTH_METHOD_STORAGE_KEY, "google");
+    if (result.refreshToken) {
+      window.localStorage.setItem(SOCIAL_REFRESH_TOKEN_STORAGE_KEY, result.refreshToken);
+    }
+
+    const sdk = sdkRef.current;
+    if (!sdk) throw new Error("Circle SDK not initialized yet");
+    sdk.setAuthentication({
+      userToken: result.userToken,
+      encryptionKey: result.encryptionKey,
+    });
+
+    setState((prev) => ({
+      ...prev,
+      userId,
+      userToken: result.userToken,
+      encryptionKey: result.encryptionKey,
+      error: null,
+    }));
+  }, []);
 
   useEffect(() => {
-    const appId = process.env.NEXT_PUBLIC_CIRCLE_APP_ID;
-    const sdk = new W3SSdk(appId ? { appSettings: { appId } } : undefined);
+    const storedDeviceToken = window.localStorage.getItem(SOCIAL_DEVICE_TOKEN_STORAGE_KEY);
+    const storedDeviceEncryptionKey = window.localStorage.getItem(
+      SOCIAL_DEVICE_ENCRYPTION_KEY_STORAGE_KEY,
+    );
+    const sdk = new W3SSdk(
+      socialLoginConfig(storedDeviceToken, storedDeviceEncryptionKey) ?? undefined,
+      async (loginError, result) => {
+        if (loginError) {
+          setState((prev) => ({ ...prev, error: loginError.message }));
+          return;
+        }
+        if (!result?.userToken || !result.encryptionKey) return;
+        try {
+          await persistSocialSession(result);
+        } catch (err) {
+          setState((prev) => ({ ...prev, error: (err as Error).message ?? String(err) }));
+        }
+      },
+    );
     sdkRef.current = sdk;
 
     // Required: establishes the SDK's iframe session with Circle. Without
@@ -95,7 +194,7 @@ export function CircleSdkProvider({ children }: { children: ReactNode }) {
         const storedUserId = window.localStorage.getItem(USER_ID_STORAGE_KEY);
         setState((prev) => ({ ...prev, sdk, userId: storedUserId, isReady: true }));
       });
-  }, []);
+  }, [persistSocialSession]);
 
   const fetchFreshToken = useCallback(async (userId: string) => {
     const res = await fetch("/api/wallet/get-token", {
@@ -145,6 +244,7 @@ export function CircleSdkProvider({ children }: { children: ReactNode }) {
         USER_TOKEN_EXP_STORAGE_KEY,
         String(Date.now() + TOKEN_TTL_MS),
       );
+      window.localStorage.setItem(AUTH_METHOD_STORAGE_KEY, "recovery");
     }
 
     const sdk = sdkRef.current;
@@ -184,6 +284,7 @@ export function CircleSdkProvider({ children }: { children: ReactNode }) {
         USER_TOKEN_EXP_STORAGE_KEY,
         String(Date.now() + TOKEN_TTL_MS),
       );
+      window.localStorage.setItem(AUTH_METHOD_STORAGE_KEY, "recovery");
     }
 
     const sdk = sdkRef.current;
@@ -243,6 +344,48 @@ export function CircleSdkProvider({ children }: { children: ReactNode }) {
     [fetchFreshToken],
   );
 
+  const loginWithGoogle = useCallback(async () => {
+    const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+    if (!googleClientId) {
+      throw new Error("Google login is not configured. Set NEXT_PUBLIC_GOOGLE_CLIENT_ID.");
+    }
+    const sdk = sdkRef.current;
+    if (!sdk) throw new Error("Circle SDK not initialized yet");
+
+    const deviceId = await sdk.getDeviceId();
+    const deviceRes = await fetch("/api/wallet/social/device-token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ deviceId }),
+    });
+    if (!deviceRes.ok) {
+      const body = await deviceRes.json().catch(() => ({}));
+      throw new Error(body.message ?? body.error ?? "Failed to prepare Google login");
+    }
+
+    const { deviceToken, deviceEncryptionKey } = await deviceRes.json();
+    window.localStorage.setItem(SOCIAL_DEVICE_TOKEN_STORAGE_KEY, deviceToken);
+    window.localStorage.setItem(SOCIAL_DEVICE_ENCRYPTION_KEY_STORAGE_KEY, deviceEncryptionKey);
+
+    const configs = socialLoginConfig(deviceToken, deviceEncryptionKey);
+    if (!configs || !("loginConfigs" in configs)) {
+      throw new Error("Google login is not fully configured.");
+    }
+    sdk.updateConfigs(configs, async (loginError, result) => {
+      if (loginError) {
+        setState((prev) => ({ ...prev, error: loginError.message }));
+        return;
+      }
+      if (!result?.userToken || !result.encryptionKey) return;
+      try {
+        await persistSocialSession(result);
+      } catch (err) {
+        setState((prev) => ({ ...prev, error: (err as Error).message ?? String(err) }));
+      }
+    });
+    await sdk.performLogin("GOOGLE" as never);
+  }, [persistSocialSession]);
+
   const executeChallenge = useCallback(
     (challengeId: string) =>
       new Promise<{ status: string; type?: string; data?: unknown }>((resolve, reject) => {
@@ -279,6 +422,7 @@ export function CircleSdkProvider({ children }: { children: ReactNode }) {
         ensureSession,
         getExistingSession,
         loginWithRecoveryCode,
+        loginWithGoogle,
         executeChallenge,
         signOut,
       }}

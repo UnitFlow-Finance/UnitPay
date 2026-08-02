@@ -4,6 +4,15 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { apiPost } from "@/lib/api";
+import { getChain } from "@/lib/chains/config";
+import { chainKeyForBlockchain } from "@/lib/chains/lookup";
+import {
+  chainSupportsCirclePaymaster,
+  circlePaymasterEnabled,
+  hasNativeGasBalance,
+  nativeGasBalance,
+  type SendFeeMode,
+} from "@/lib/circle/paymaster";
 import { useCircleSdk } from "@/lib/circle/sdkContext";
 import { useWallet } from "@/lib/useWallet";
 import {
@@ -38,6 +47,7 @@ export default function SendPage() {
   const [selectedTokenKey, setSelectedTokenKey] = useState("");
   const [destination, setDestination] = useState("");
   const [amount, setAmount] = useState("");
+  const [feeMode, setFeeMode] = useState<SendFeeMode>("native");
   const [step, setStep] = useState<Step>("form");
   const [error, setError] = useState<string | null>(null);
 
@@ -69,6 +79,17 @@ export default function SendPage() {
     selectedBalances.find((balance) => uniqueTokenKey(balance) === selectedTokenKey) ??
     selectedBalances.find((balance) => tokenSymbol(balance) === "USDC") ??
     selectedBalances[0];
+  const wallet = selectedGroup?.wallet ?? primaryWallet;
+  const chainKey = wallet ? chainKeyForBlockchain(wallet.blockchain) : "arcTestnet";
+  const selectedChain = getChain(chainKey);
+  const selectedSymbol = selectedToken ? tokenSymbol(selectedToken) : "TOKEN";
+  const availableAmount = selectedToken ? tokenAmount(selectedToken) : 0;
+  const nativeGas = nativeGasBalance(selectedGroup?.tokenBalances ?? []);
+  const hasNativeGas = hasNativeGasBalance(selectedGroup?.tokenBalances ?? []);
+  const paymasterAvailable =
+    circlePaymasterEnabled() &&
+    chainSupportsCirclePaymaster(chainKey) &&
+    selectedSymbol === "USDC";
 
   useEffect(() => {
     if (selectedToken && uniqueTokenKey(selectedToken) !== selectedTokenKey) {
@@ -79,6 +100,13 @@ export default function SendPage() {
       return () => window.clearTimeout(timeout);
     }
   }, [selectedToken, selectedTokenKey]);
+
+  useEffect(() => {
+    if (feeMode === "paymaster" && !paymasterAvailable) {
+      const timeout = window.setTimeout(() => setFeeMode("native"), 0);
+      return () => window.clearTimeout(timeout);
+    }
+  }, [feeMode, paymasterAvailable]);
 
   if (!primaryWallet) {
     return (
@@ -96,10 +124,6 @@ export default function SendPage() {
     );
   }
 
-  const wallet = selectedGroup?.wallet ?? primaryWallet;
-  const selectedSymbol = selectedToken ? tokenSymbol(selectedToken) : "TOKEN";
-  const availableAmount = selectedToken ? tokenAmount(selectedToken) : 0;
-
   function validateForm(): string | null {
     if (!destination.trim()) return "Enter a destination.";
     if (
@@ -113,6 +137,9 @@ export default function SendPage() {
     if (!amount || Number.isNaN(amt) || amt <= 0) return "Enter a valid amount.";
     if (!selectedToken) return "Select a token balance to send.";
     if (amt > availableAmount) return "Amount exceeds your available balance.";
+    if (feeMode === "paymaster" && !paymasterAvailable) {
+      return "Circle Paymaster is not available for this token and chain.";
+    }
     return null;
   }
 
@@ -141,6 +168,7 @@ export default function SendPage() {
         amount,
         tokenAddress: selectedToken?.token.isNative ? "" : selectedToken?.token.tokenAddress,
         blockchain: wallet.blockchain,
+        feeMode,
       });
 
       if (!challengeId) throw new Error("No challenge returned from server.");
@@ -214,6 +242,50 @@ export default function SendPage() {
             />
           </Field>
 
+          <div className="space-y-2">
+            <p className="text-xs text-muted uppercase tracking-wide">Network fee</p>
+            <div className="grid gap-2">
+              <button
+                type="button"
+                onClick={() => setFeeMode("native")}
+                className={`rounded-xl border px-3 py-3 text-left text-sm transition-colors ${
+                  feeMode === "native"
+                    ? "border-primary bg-primary/5"
+                    : "border-border bg-surface hover:border-primary/40"
+                }`}
+              >
+                <span className="font-medium text-foreground">Normal native gas</span>
+                <span className="block text-xs text-muted mt-1">
+                  {selectedChain.usdcIsNativeGas
+                    ? "Arc uses USDC as native gas."
+                    : hasNativeGas
+                      ? `Uses your ${formatCompactBalance(nativeGas?.amount ?? 0)} ${
+                          nativeGas ? tokenSymbol(nativeGas) : "native"
+                        } gas balance.`
+                      : "Requires native gas on this chain before the transfer can settle."}
+                </span>
+              </button>
+
+              {paymasterAvailable && (
+                <button
+                  type="button"
+                  onClick={() => setFeeMode("paymaster")}
+                  className={`rounded-xl border px-3 py-3 text-left text-sm transition-colors ${
+                    feeMode === "paymaster"
+                      ? "border-primary bg-primary/5"
+                      : "border-border bg-surface hover:border-primary/40"
+                  }`}
+                >
+                  <span className="font-medium text-foreground">Circle Paymaster</span>
+                  <span className="block text-xs text-muted mt-1">
+                    Sponsor gas with Circle Paymaster for this USDC send. If the Circle
+                    configuration rejects sponsorship, retry with normal native gas.
+                  </span>
+                </button>
+              )}
+            </div>
+          </div>
+
           {error && <p className="text-error text-sm">{error}</p>}
 
           <Button onClick={handleContinue} size="lg" fullWidth>
@@ -235,6 +307,10 @@ export default function SendPage() {
           <Card className="space-y-3">
             <ConfirmRow label="Network" value={walletChainLabel(selectedGroup)} />
             <ConfirmRow label="Token" value={selectedSymbol} />
+            <ConfirmRow
+              label="Fee"
+              value={feeMode === "paymaster" ? "Circle Paymaster" : "Normal native gas"}
+            />
             <ConfirmRow
               label="To"
               value={`${destination.slice(0, 10)}…${destination.slice(-6)}`}
