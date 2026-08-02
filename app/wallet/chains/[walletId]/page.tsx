@@ -16,7 +16,10 @@ export default function WalletChainDetailPage({
   const { walletId } = use(params);
   const { walletBalances, transactions } = useWallet();
   const group = walletBalances.find((entry) => entry.wallet.id === walletId);
-  const displayBalances = displayTokenBalances(group?.tokenBalances ?? []);
+  const displayBalances = displayTokenBalances(
+    group?.tokenBalances ?? [],
+    group?.wallet.blockchain,
+  );
   const chainTransactions = transactions.filter(
     (tx) => tx.blockchain === group?.wallet.blockchain,
   );

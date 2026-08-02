@@ -189,8 +189,11 @@ export default function WalletDashboardPage() {
 
             <div className="space-y-2">
               {walletBalances.map((group) => {
-                const displayBalances = displayTokenBalances(group.tokenBalances);
-                const usdc = primaryUsdcBalance(group.tokenBalances);
+                const displayBalances = displayTokenBalances(
+                  group.tokenBalances,
+                  group.wallet.blockchain,
+                );
+                const usdc = primaryUsdcBalance(group.tokenBalances, group.wallet.blockchain);
                 return (
                   <Link key={group.wallet.id} href={`/wallet/chains/${group.wallet.id}`}>
                     <div className="rounded-xl border border-border px-3 py-3 hover:border-primary/40 transition-colors min-w-0">

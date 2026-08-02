@@ -60,7 +60,10 @@ export default function SendPage() {
 
   const selectedGroup =
     walletBalances.find((group) => group.wallet.id === selectedWalletId) ?? walletBalances[0];
-  const selectedBalances = displayTokenBalances(selectedGroup?.tokenBalances ?? []);
+  const selectedBalances = displayTokenBalances(
+    selectedGroup?.tokenBalances ?? [],
+    selectedGroup?.wallet.blockchain,
+  );
   const selectedToken =
     selectedBalances.find((balance) => uniqueTokenKey(balance) === selectedTokenKey) ??
     selectedBalances.find((balance) => tokenSymbol(balance) === "USDC") ??
