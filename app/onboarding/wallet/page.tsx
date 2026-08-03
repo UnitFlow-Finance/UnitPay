@@ -19,9 +19,10 @@ import { Button } from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Input";
 
 /**
- * Wallet setup flow: create a Circle User-Controlled Wallet, PIN-gated, with
- * no seed phrase shown by default. Uses Circle's hosted PIN UI (iframe) via
- * the Web SDK's execute() challenge flow — UnitPay never sees the PIN.
+ * Wallet setup flow: create a Circle User-Controlled Wallet with no seed
+ * phrase shown by default. Uses Circle's hosted auth UI (PIN or social login,
+ * depending on the user's configured method) via the Web SDK execute()
+ * challenge flow — UnitPay never sees the PIN or social credential.
  *
  * This is the destination for every "Create Your Wallet" CTA on the
  * `/onboarding` marketing page — kept as its own route so that page can be a
@@ -84,21 +85,29 @@ function OnboardingWalletPageInner() {
     try {
       const { userId, userToken } = await ensureSession();
 
-      setMessage("Creating your Arc Testnet wallet...");
-      const { challengeId } = await apiPost<{ challengeId: string }>(
-        "/api/wallet/initialize",
-        {
+      const isGoogleAuth = getStoredAuthMethod() === "google";
+      setMessage("Creating your Paymaster-ready Arc Testnet wallet...");
+      const { challengeId } = isGoogleAuth
+        ? await apiPost<{ challengeId: string }>("/api/wallet/create", {
+            userToken,
+            blockchain: PRIMARY_CHAIN.circleBlockchain,
+            accountType: "SCA",
+          })
+        : await apiPost<{ challengeId: string }>("/api/wallet/initialize", {
           userToken,
           blockchains: [PRIMARY_CHAIN.circleBlockchain],
-          accountType: getStoredAuthMethod() === "google" ? "SCA" : "EOA",
-        },
-      );
+          accountType: "SCA",
+        });
 
       if (!challengeId) {
         throw new Error("No challenge returned — user may already be initialized.");
       }
 
-      setMessage("Set your PIN to secure your wallet...");
+      setMessage(
+        isGoogleAuth
+          ? "Approve wallet setup with Google in the secure popup..."
+          : "Set your PIN to secure your wallet...",
+      );
       await executeChallenge(challengeId);
 
       const { wallets } = await apiPost<{ wallets: UnitPayWallet[] }>(
@@ -278,8 +287,9 @@ function OnboardingWalletPageInner() {
         {sdkError && <p className="text-error text-xs">SDK error: {sdkError}</p>}
 
         <p className="text-xs text-subtle leading-relaxed">
-          No seed phrase shown. Your wallet is secured by a PIN and Circle&apos;s MPC key
-          infrastructure. Backup is required before onboarding is complete.
+          No seed phrase shown. Your wallet is secured by your selected Circle authentication
+          method and Circle&apos;s MPC key infrastructure. Backup is required before onboarding is
+          complete.
         </p>
 
         <div className="flex items-center justify-center gap-4 text-xs">

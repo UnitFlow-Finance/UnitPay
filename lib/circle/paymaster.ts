@@ -1,8 +1,10 @@
 import { getChain } from "@/lib/chains/config";
+import { chainKeyForBlockchain } from "@/lib/chains/lookup";
 import type { UnitPayTokenBalance, UnitPayWallet } from "@/lib/types";
 import { tokenAmount, tokenSymbol } from "@/lib/wallet/balances";
 
 export type SendFeeMode = "native" | "paymaster";
+export type CircleWalletAccountType = "EOA" | "SCA";
 
 export function circlePaymasterEnabled(): boolean {
   return (
@@ -20,6 +22,24 @@ export function walletSupportsCirclePaymaster(
   wallet?: Pick<UnitPayWallet, "accountType"> | null,
 ): boolean {
   return wallet?.accountType?.toUpperCase() === "SCA";
+}
+
+export function defaultWalletAccountTypeForChainKey(chainKey: string): CircleWalletAccountType {
+  return getChain(chainKey).family === "evm" ? "SCA" : "EOA";
+}
+
+export function defaultWalletAccountTypeForBlockchain(
+  blockchain: string,
+): CircleWalletAccountType {
+  return defaultWalletAccountTypeForChainKey(chainKeyForBlockchain(blockchain));
+}
+
+export function normalizeWalletAccountType(
+  accountType: unknown,
+  blockchain: string,
+): CircleWalletAccountType {
+  if (accountType === "EOA" || accountType === "SCA") return accountType;
+  return defaultWalletAccountTypeForBlockchain(blockchain);
 }
 
 export function nativeGasBalance(

@@ -355,7 +355,7 @@ export default function FulfillPaymentRequestPage({
 
         {step === "working" && (
           <p className="text-muted text-sm text-center py-8">
-            Approve this payment with your PIN in the popup...
+            Approve this payment in the secure Circle popup...
           </p>
         )}
 

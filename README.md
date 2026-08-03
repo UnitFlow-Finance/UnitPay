@@ -21,13 +21,15 @@ Brand tokens (logo, colors, fonts) are sourced from
 
 ## What's here
 
-- **Onboarding** (`app/onboarding`) — PIN-based wallet creation via Circle's
-  Web SDK (`@circle-fin/w3s-pw-web-sdk`), no email/password backend of our
-  own; Circle owns the user identity + key material.
-- **Recovery-code login** (`app/wallet/login`) — a user's Circle `userId` is
-  shown once at signup as a device-independent recovery code; entering it
-  plus the PIN restores a session from any device without relying on
-  browser storage.
+- **Onboarding** (`app/onboarding`) — wallet creation via Circle's Web SDK
+  (`@circle-fin/w3s-pw-web-sdk`) with PIN or Google social login; Circle owns
+  the user identity + key material. New EVM wallets default to SCA so they are
+  ready for Paymaster on supported chains.
+- **Recovery-code login** (`app/onboarding/login`) — a user's Circle `userId`
+  is shown once at signup as a device-independent recovery code; entering it
+  plus the PIN restores a session from any device without relying on browser
+  storage. Google social login remains available for users who created or
+  authenticated their wallet through Google.
 - **Wallet dashboard** (`app/wallet`) — balances, send/receive, transaction
   history, and a "Get testnet USDC" faucet flow.
 - **Unified balance / cross-chain transfer** (`app/wallet/unified`) — reads

@@ -7,7 +7,7 @@ const MODULES = [
     icon: Fingerprint,
     name: "Self-Custodied Wallet",
     description:
-      "MPC-based wallet with no seed phrase — secured by a PIN via Circle's User-Controlled Wallets. You always hold the keys.",
+      "MPC-based wallet with no seed phrase — secured by PIN or Google login through Circle's User-Controlled Wallets. You always hold the keys.",
   },
   {
     icon: ArrowLeftRight,

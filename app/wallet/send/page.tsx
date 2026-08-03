@@ -111,8 +111,14 @@ export default function SendPage() {
   }, [selectedToken, selectedTokenKey]);
 
   useEffect(() => {
-    if (feeMode === "paymaster" && !paymasterAvailable) {
-      const timeout = window.setTimeout(() => setFeeMode("native"), 0);
+    if (
+      (feeMode === "paymaster" && !paymasterAvailable) ||
+      (feeMode === "native" && paymasterAvailable)
+    ) {
+      const timeout = window.setTimeout(
+        () => setFeeMode(paymasterAvailable ? "paymaster" : "native"),
+        0,
+      );
       return () => window.clearTimeout(timeout);
     }
   }, [feeMode, paymasterAvailable]);
@@ -287,8 +293,8 @@ export default function SendPage() {
                 >
                   <span className="font-medium text-foreground">Circle Paymaster</span>
                   <span className="block text-xs text-muted mt-1">
-                    Sponsor gas with Circle Paymaster for this USDC send. If the Circle
-                    configuration rejects sponsorship, retry with normal native gas.
+                    Default for Paymaster-ready wallets. Sponsors gas for this USDC send when
+                    Circle sponsorship is available.
                   </span>
                 </button>
               )}
@@ -347,7 +353,7 @@ export default function SendPage() {
 
       {step === "working" && (
         <p className="text-muted text-sm text-center py-8">
-          Approve this transfer with your PIN in the popup...
+          Approve this transfer in the secure Circle popup...
         </p>
       )}
 

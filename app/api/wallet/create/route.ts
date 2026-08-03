@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { circleClient, circleConfigured } from "@/lib/circle/client";
 import { circleErrorResponse } from "@/lib/circle/apiError";
+import { normalizeWalletAccountType } from "@/lib/circle/paymaster";
 
 export async function POST(request: Request) {
   if (!circleConfigured) {
@@ -19,7 +20,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const walletAccountType = accountType === "SCA" ? "SCA" : "EOA";
+    const walletAccountType = normalizeWalletAccountType(accountType, String(blockchain));
 
     const response = await circleClient.createWallet({
       userToken,

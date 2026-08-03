@@ -62,7 +62,7 @@ export async function sendGatewayUsdcLeg({
 
   const signatureResult = await executeChallenge(challengeId);
   const signature = readSignature(signatureResult.data) ?? readSignature(signatureResult);
-  if (!signature) throw new Error("No signature returned from PIN challenge.");
+  if (!signature) throw new Error("No signature returned from the Circle authorization challenge.");
 
   const { attestation, signature: mintSignature } = await apiPost<{
     attestation: string;

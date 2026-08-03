@@ -27,7 +27,6 @@ import { Field, Select } from "@/components/ui/Input";
 import { apiPost } from "@/lib/api";
 import { DEFAULT_SELECTOR_CHAINS, getChain } from "@/lib/chains/config";
 import { useCircleSdk } from "@/lib/circle/sdkContext";
-import { getStoredAuthMethod } from "@/lib/session";
 import { useGatewayBalance } from "@/lib/useGatewayBalance";
 import { useWallet } from "@/lib/useWallet";
 import {
@@ -105,22 +104,39 @@ export default function WalletDashboardPage() {
   const personalUsdcTotal = totalsBySymbol.USDC ?? 0;
   const existingBlockchains = new Set(wallets.map((wallet) => wallet.blockchain));
   const createChain = getChain(chainToCreate);
+  const createChainWallets = wallets.filter(
+    (wallet) => wallet.blockchain === createChain.circleBlockchain,
+  );
+  const hasPaymasterWalletForCreateChain = createChainWallets.some(
+    (wallet) => wallet.accountType?.toUpperCase() === "SCA",
+  );
+  const canCreatePaymasterWallet =
+    createChain.family === "evm" && !hasPaymasterWalletForCreateChain;
+  const createAccountType = createChain.family === "evm" ? "SCA" : "EOA";
 
   async function handleCreateChainWallet() {
     if (!userToken) return;
     setCreateStatus("working");
-    setCreateMessage(`Creating ${createChain.label} wallet...`);
+    setCreateMessage(
+      canCreatePaymasterWallet
+        ? `Creating Paymaster-ready ${createChain.label} wallet...`
+        : `Creating ${createChain.label} wallet...`,
+    );
     try {
       const { challengeId } = await apiPost<{ challengeId: string }>("/api/wallet/create", {
         userToken,
         blockchain: createChain.circleBlockchain,
-        accountType: getStoredAuthMethod() === "google" ? "SCA" : "EOA",
+        accountType: createAccountType,
       });
       if (!challengeId) throw new Error("No wallet creation challenge returned.");
       await executeChallenge(challengeId);
       await refresh();
       setCreateStatus("done");
-      setCreateMessage(`${createChain.label} wallet created.`);
+      setCreateMessage(
+        canCreatePaymasterWallet
+          ? `${createChain.label} Paymaster wallet created.`
+          : `${createChain.label} wallet created.`,
+      );
     } catch (err) {
       setCreateStatus("error");
       setCreateMessage((err as Error).message ?? String(err));
@@ -202,7 +218,20 @@ export default function WalletDashboardPage() {
                     <div className="rounded-xl border border-border px-3 py-3 hover:border-primary/40 transition-colors min-w-0">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="font-medium">{walletChainLabel(group)}</p>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-medium">{walletChainLabel(group)}</p>
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                                group.wallet.accountType?.toUpperCase() === "SCA"
+                                  ? "bg-success/10 text-success"
+                                  : "bg-warning/10 text-warning"
+                              }`}
+                            >
+                              {group.wallet.accountType?.toUpperCase() === "SCA"
+                                ? "Paymaster-ready"
+                                : "EOA"}
+                            </span>
+                          </div>
                           <p className="text-xs text-muted font-mono truncate">
                             {group.wallet.id}
                           </p>
@@ -267,11 +296,14 @@ export default function WalletDashboardPage() {
           <Card className="space-y-3">
             <p className="font-medium">Add another chain</p>
             <p className="text-xs text-muted">
-              Create a Circle wallet on another supported testnet so balances and transactions
-              appear on the dashboard.
+              Create SCA wallets on EVM testnets for Paymaster support. Existing EOA wallets can
+              be upgraded by creating a Paymaster-ready wallet on the same chain.
             </p>
             <Field label="Chain">
-              <Select value={chainToCreate} onChange={(event) => setChainToCreate(event.target.value)}>
+              <Select
+                value={chainToCreate}
+                onChange={(event) => setChainToCreate(event.target.value)}
+              >
                 {DEFAULT_SELECTOR_CHAINS.map((key) => {
                   const chain = getChain(key);
                   const exists = existingBlockchains.has(chain.circleBlockchain);
@@ -286,11 +318,19 @@ export default function WalletDashboardPage() {
             <Button
               onClick={handleCreateChainWallet}
               disabled={
-                createStatus === "working" || existingBlockchains.has(createChain.circleBlockchain)
+                createStatus === "working" ||
+                (!canCreatePaymasterWallet &&
+                  existingBlockchains.has(createChain.circleBlockchain))
               }
               fullWidth
             >
-              {createStatus === "working" ? "Creating..." : "Enable chain wallet"}
+              {createStatus === "working"
+                ? "Creating..."
+                : canCreatePaymasterWallet
+                  ? existingBlockchains.has(createChain.circleBlockchain)
+                    ? "Create Paymaster wallet"
+                    : "Enable Paymaster wallet"
+                  : "Enable chain wallet"}
             </Button>
             {createMessage && (
               <p className={`text-xs ${createStatus === "error" ? "text-error" : "text-muted"}`}>

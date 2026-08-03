@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   chainSupportsCirclePaymaster,
+  defaultWalletAccountTypeForBlockchain,
+  defaultWalletAccountTypeForChainKey,
   hasNativeGasBalance,
   nativeGasBalance,
   paymasterTransferFee,
@@ -48,5 +50,13 @@ describe("Circle paymaster helpers", () => {
     expect(walletSupportsCirclePaymaster({ accountType: "sca" })).toBe(true);
     expect(walletSupportsCirclePaymaster({ accountType: "EOA" })).toBe(false);
     expect(walletSupportsCirclePaymaster(null)).toBe(false);
+  });
+
+  it("defaults EVM wallets to SCA and Solana wallets to EOA", () => {
+    expect(defaultWalletAccountTypeForChainKey("arcTestnet")).toBe("SCA");
+    expect(defaultWalletAccountTypeForChainKey("baseSepolia")).toBe("SCA");
+    expect(defaultWalletAccountTypeForChainKey("solanaDevnet")).toBe("EOA");
+    expect(defaultWalletAccountTypeForBlockchain("BASE-SEPOLIA")).toBe("SCA");
+    expect(defaultWalletAccountTypeForBlockchain("SOL-DEVNET")).toBe("EOA");
   });
 });

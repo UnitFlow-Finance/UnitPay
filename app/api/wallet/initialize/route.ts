@@ -2,13 +2,13 @@ import { NextResponse } from "next/server";
 import { circleClient, circleConfigured } from "@/lib/circle/client";
 import { circleErrorResponse } from "@/lib/circle/apiError";
 import { PRIMARY_CHAIN } from "@/lib/chains/config";
+import { defaultWalletAccountTypeForBlockchain } from "@/lib/circle/paymaster";
 
 /**
  * Initializes a user (sets PIN via Circle's hosted UI) and creates their
  * first wallet(s). Returns a challengeId the frontend executes with
- * sdk.execute(). Defaults to Arc Testnet (this app's primary chain) using
- * an EOA account. Social-login callers can request SCA wallets for
- * Paymaster-compatible chains.
+ * sdk.execute(). Defaults EVM chains to SCA so new wallets are Paymaster-capable
+ * wherever Circle supports sponsored gas; non-EVM chains remain EOA.
  *
  * If the user is already initialized, Circle returns error code 155106 —
  * the frontend should treat that as "fetch existing wallets" rather than
@@ -32,7 +32,14 @@ export async function POST(request: Request) {
       Array.isArray(blockchains) && blockchains.length > 0
         ? blockchains
         : [PRIMARY_CHAIN.circleBlockchain];
-    const walletAccountType = accountType === "SCA" ? "SCA" : "EOA";
+    const defaultAccountType =
+      targetBlockchains.every(
+        (blockchain) => defaultWalletAccountTypeForBlockchain(blockchain) === "SCA",
+      )
+        ? "SCA"
+        : "EOA";
+    const walletAccountType =
+      accountType === "EOA" || accountType === "SCA" ? accountType : defaultAccountType;
 
     const response = await circleClient.createUserPinWithWallets({
       userToken,

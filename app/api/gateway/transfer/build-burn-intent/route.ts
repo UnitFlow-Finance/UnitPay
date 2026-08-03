@@ -15,7 +15,7 @@ import { usdcToBaseUnits } from "@/lib/units";
  * Builds a Gateway burn-intent EIP-712 payload for a cross-chain unified
  * balance transfer, and requests a signTypedData challenge for it from
  * Circle Wallets. The frontend executes the returned challengeId with the
- * user's PIN, then POSTs the resulting signature to
+ * user's configured Circle authentication method, then POSTs the resulting signature to
  * /api/gateway/transfer/submit to complete the transfer.
  *
  * Default maxFee mirrors Circle's own canonical example (2.01 USDC) — safe

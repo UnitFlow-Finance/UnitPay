@@ -88,7 +88,7 @@ export default function EscrowPodDetailPage({ params }: { params: Promise<{ id: 
       });
       if (!challengeId) throw new Error("No transfer challenge returned.");
 
-      setMessage("Approve the pod contribution with your PIN...");
+      setMessage("Approve the pod contribution in the secure Circle popup...");
       await executeChallenge(challengeId);
       const updated = await addContributionRemote({
         podId: pod.id,

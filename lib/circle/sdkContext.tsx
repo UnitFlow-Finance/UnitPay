@@ -221,6 +221,40 @@ export function CircleSdkProvider({ children }: { children: ReactNode }) {
     return { userToken, encryptionKey } as { userToken: string; encryptionKey: string };
   }, []);
 
+  const refreshSocialSession = useCallback(
+    async (currentUserToken: string) => {
+      const refreshToken = window.localStorage.getItem(SOCIAL_REFRESH_TOKEN_STORAGE_KEY);
+      const sdk = sdkRef.current;
+      if (!currentUserToken || !refreshToken || !sdk) return null;
+
+      const deviceId = await sdk.getDeviceId();
+      const res = await fetch("/api/wallet/social/refresh", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userToken: currentUserToken, refreshToken, deviceId }),
+      });
+      if (!res.ok) return null;
+
+      const fresh = (await res.json()) as {
+        userToken: string;
+        encryptionKey: string;
+        refreshToken?: string;
+      };
+      if (!fresh.userToken || !fresh.encryptionKey) return null;
+
+      window.localStorage.setItem(USER_TOKEN_STORAGE_KEY, fresh.userToken);
+      window.localStorage.setItem(ENCRYPTION_KEY_STORAGE_KEY, fresh.encryptionKey);
+      window.localStorage.setItem(USER_TOKEN_EXP_STORAGE_KEY, String(Date.now() + TOKEN_TTL_MS));
+      window.localStorage.setItem(AUTH_METHOD_STORAGE_KEY, "google");
+      if (fresh.refreshToken) {
+        window.localStorage.setItem(SOCIAL_REFRESH_TOKEN_STORAGE_KEY, fresh.refreshToken);
+      }
+      sdk.setAuthentication({ userToken: fresh.userToken, encryptionKey: fresh.encryptionKey });
+      return { userToken: fresh.userToken, encryptionKey: fresh.encryptionKey };
+    },
+    [],
+  );
+
   const ensureSession = useCallback(async () => {
     let userId = window.localStorage.getItem(USER_ID_STORAGE_KEY);
     if (!userId) {
@@ -246,7 +280,13 @@ export function CircleSdkProvider({ children }: { children: ReactNode }) {
     let encryptionKey = cachedEncryptionKey;
 
     if (!userToken || !encryptionKey || Date.now() > cachedExp) {
-      const fresh = await fetchFreshToken(userId);
+      const fresh =
+        window.localStorage.getItem(AUTH_METHOD_STORAGE_KEY) === "google" && userToken
+          ? await refreshSocialSession(userToken)
+          : await fetchFreshToken(userId);
+      if (!fresh) {
+        throw new Error("Google session expired. Sign in with Google again to continue.");
+      }
       userToken = fresh.userToken;
       encryptionKey = fresh.encryptionKey;
       window.localStorage.setItem(USER_TOKEN_STORAGE_KEY, userToken);
@@ -255,7 +295,9 @@ export function CircleSdkProvider({ children }: { children: ReactNode }) {
         USER_TOKEN_EXP_STORAGE_KEY,
         String(Date.now() + TOKEN_TTL_MS),
       );
-      window.localStorage.setItem(AUTH_METHOD_STORAGE_KEY, "recovery");
+      if (window.localStorage.getItem(AUTH_METHOD_STORAGE_KEY) !== "google") {
+        window.localStorage.setItem(AUTH_METHOD_STORAGE_KEY, "recovery");
+      }
     }
 
     const sdk = sdkRef.current;
@@ -272,7 +314,7 @@ export function CircleSdkProvider({ children }: { children: ReactNode }) {
     }));
 
     return { userId, userToken, encryptionKey };
-  }, [fetchFreshToken]);
+  }, [fetchFreshToken, refreshSocialSession]);
 
   const getExistingSession = useCallback(async () => {
     const userId = window.localStorage.getItem(USER_ID_STORAGE_KEY);
@@ -286,7 +328,13 @@ export function CircleSdkProvider({ children }: { children: ReactNode }) {
     let encryptionKey = cachedEncryptionKey;
 
     if (!userToken || !encryptionKey || Date.now() > cachedExp) {
-      const fresh = await fetchFreshToken(userId);
+      const fresh =
+        window.localStorage.getItem(AUTH_METHOD_STORAGE_KEY) === "google" && userToken
+          ? await refreshSocialSession(userToken)
+          : await fetchFreshToken(userId);
+      if (!fresh) {
+        throw new Error("Google session expired. Sign in with Google again to continue.");
+      }
       userToken = fresh.userToken;
       encryptionKey = fresh.encryptionKey;
       window.localStorage.setItem(USER_TOKEN_STORAGE_KEY, userToken);
@@ -295,7 +343,9 @@ export function CircleSdkProvider({ children }: { children: ReactNode }) {
         USER_TOKEN_EXP_STORAGE_KEY,
         String(Date.now() + TOKEN_TTL_MS),
       );
-      window.localStorage.setItem(AUTH_METHOD_STORAGE_KEY, "recovery");
+      if (window.localStorage.getItem(AUTH_METHOD_STORAGE_KEY) !== "google") {
+        window.localStorage.setItem(AUTH_METHOD_STORAGE_KEY, "recovery");
+      }
     }
 
     const sdk = sdkRef.current;
@@ -311,7 +361,7 @@ export function CircleSdkProvider({ children }: { children: ReactNode }) {
     }));
 
     return { userId, userToken, encryptionKey };
-  }, [fetchFreshToken]);
+  }, [fetchFreshToken, refreshSocialSession]);
 
   const loginWithRecoveryCode = useCallback(
     async (userId: string) => {
@@ -337,6 +387,7 @@ export function CircleSdkProvider({ children }: { children: ReactNode }) {
         USER_TOKEN_EXP_STORAGE_KEY,
         String(Date.now() + TOKEN_TTL_MS),
       );
+      window.localStorage.setItem(AUTH_METHOD_STORAGE_KEY, "recovery");
 
       const sdk = sdkRef.current;
       if (!sdk) throw new Error("Circle SDK not initialized yet");

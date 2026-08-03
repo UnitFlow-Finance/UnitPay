@@ -312,7 +312,7 @@ function SendPanel({
         setMessage(
           legs.length > 1
             ? `Sending ${leg.amount} USDC from ${getChain(leg.chainKey).label} (${i + 1}/${legs.length})...`
-            : `Sign with your PIN to send from ${getChain(leg.chainKey).label}...`,
+            : `Authorize the send from ${getChain(leg.chainKey).label} in the secure Circle popup...`,
         );
         await sendOneLeg(userToken, leg);
         setLegProgress({ done: i + 1, total: legs.length });

@@ -24,7 +24,8 @@ const MAX_UNCONFIRMED_USDC_WARNING_THRESHOLD = 100;
  * Per skill security rules: always require explicit confirmation of
  * destination/amount/network on the frontend before calling this; this
  * route does not itself execute anything — it only returns a challengeId
- * that the frontend must run through sdk.execute() with user PIN approval.
+ * that the frontend must run through sdk.execute() with the user's configured
+ * Circle authentication method.
  */
 export async function POST(request: Request) {
   if (!circleConfigured) {
